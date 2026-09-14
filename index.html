@@ -2372,10 +2372,17 @@
     <!-- PRIVACIDAD -->
     <div id="seccion-privacidad" class="seccion">
         <div class="card">
+            <h2>☁️ Sincronización en la Nube</h2>
+            <div class="privacidad-info">
+                <p>🔌 <span class="valor" id="priv-supabase-estado">Verificando...</span></p>
+                <p>🕐 <span class="valor">Último guardado en la nube:</span> <span id="priv-supabase-ultima">-</span></p>
+            </div>
+            <button class="btn btn-azul" style="margin-top:10px;" onclick="probarConexionSupabase()">🔄 Probar Conexión</button>
+        </div>
+        <div class="card">
             <h2>🔒 Privacidad</h2>
             <div class="privacidad-info">
-                <p>📅 <span class="valor">Datos guardados localmente</span></p>
-                <p>💾 <span class="valor">Almacenamiento:</span> localStorage</p>
+                <p>📅 <span class="valor">Datos guardados localmente + en la nube (si está conectada)</span></p>
                 <p>🛒 <span class="valor">Productos:</span> <span id="priv-prod-count">0</span></p>
                 <p>💰 <span class="valor">Ventas:</span> <span id="priv-ventas-count">0</span></p>
                 <p>📦 <span class="valor">Clientes:</span> <span id="priv-clientes-count">0</span></p>
@@ -5474,6 +5481,41 @@ function actualizarPrivacidad() {
     document.getElementById('priv-prod-count').textContent = estado.productos.length;
     document.getElementById('priv-ventas-count').textContent = estado.ventas.length;
     document.getElementById('priv-clientes-count').textContent = estado.clientes.length;
+    probarConexionSupabase();
+}
+
+async function probarConexionSupabase() {
+    const estadoEl = document.getElementById('priv-supabase-estado');
+    const ultimaEl = document.getElementById('priv-supabase-ultima');
+    if (!estadoEl) return;
+    
+    if (!window.supabase) {
+        estadoEl.textContent = '❌ La librería de Supabase no cargó (revisa tu conexión a internet)';
+        estadoEl.style.color = '#ff6666';
+        return;
+    }
+    if (!supabaseClient) {
+        estadoEl.textContent = '⚠️ No conectado (falta poner SUPABASE_URL / SUPABASE_ANON_KEY en el código)';
+        estadoEl.style.color = '#ffaa00';
+        return;
+    }
+    
+    estadoEl.textContent = '🔄 Probando conexión...';
+    estadoEl.style.color = '#888';
+    try {
+        const { data, error } = await supabaseClient.from('estado_tienda').select('updated_at').eq('id', ESTADO_ID).single();
+        if (error) {
+            estadoEl.textContent = '❌ Error al conectar: ' + error.message;
+            estadoEl.style.color = '#ff6666';
+            return;
+        }
+        estadoEl.textContent = '✅ Conectado a Supabase correctamente';
+        estadoEl.style.color = '#00ff88';
+        ultimaEl.textContent = data && data.updated_at ? new Date(data.updated_at).toLocaleString() : 'Sin datos guardados aún';
+    } catch (e) {
+        estadoEl.textContent = '❌ Error al conectar: ' + e.message;
+        estadoEl.style.color = '#ff6666';
+    }
 }
 function exportarDatos() {
     const blob = new Blob([JSON.stringify(estado, null, 2)], { type: 'application/json' });
