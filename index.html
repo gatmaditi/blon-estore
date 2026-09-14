@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Mi Tienda - Sistema de Ventas</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { 
@@ -1651,6 +1652,25 @@
 </head>
 <body>
 
+<!-- PANTALLA DE LOGIN -->
+<div id="pantallaLogin" style="position:fixed; inset:0; background:linear-gradient(135deg,#0d0d0f 0%,#1a1a1e 100%); z-index:9999999; display:flex; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:#1a1a1e; border:2px solid #ff8800; border-radius:20px; padding:40px 30px; max-width:380px; width:100%; text-align:center; box-shadow:0 10px 40px rgba(255,136,0,0.15);">
+        <div style="font-size:56px; margin-bottom:10px;">🛍️</div>
+        <h1 style="color:#ff8800; margin-bottom:5px; font-size:24px;">Blon E-Store</h1>
+        <p style="color:#888; font-size:13px; margin-bottom:28px;">Inicia sesión para continuar</p>
+        <div style="text-align:left; margin-bottom:15px;">
+            <label style="display:block; font-size:13px; color:#aaa; margin-bottom:6px;">👤 Usuario</label>
+            <input type="text" id="login-usuario" placeholder="Usuario" autocomplete="off" style="width:100%; padding:13px; background:#0d0d0f; border:1px solid #333; color:white; border-radius:10px; font-size:15px;">
+        </div>
+        <div style="text-align:left; margin-bottom:22px;">
+            <label style="display:block; font-size:13px; color:#aaa; margin-bottom:6px;">🔒 Contraseña</label>
+            <input type="password" id="login-password" placeholder="Contraseña" style="width:100%; padding:13px; background:#0d0d0f; border:1px solid #333; color:white; border-radius:10px; font-size:15px;" onkeypress="if(event.key==='Enter') intentarLogin()">
+        </div>
+        <div id="login-error" style="color:#ff6666; font-size:13px; margin-bottom:15px; display:none;">❌ Usuario o contraseña incorrectos</div>
+        <button class="btn btn-primary" style="width:100%; padding:15px; font-size:16px; border-radius:10px;" onclick="intentarLogin()">🔓 Entrar</button>
+    </div>
+</div>
+
 <div id="banner-pantalla-completa" onclick="solicitarPantallaCompleta()" style="display:none; position:fixed; top:0; left:0; right:0; z-index:999999; background:#ff8800; color:#000; padding:12px; text-align:center; font-weight:bold; cursor:pointer; align-items:center; justify-content:center; gap:8px;">
     📱 Toca aquí para entrar en modo pantalla completa
 </div>
@@ -1714,7 +1734,7 @@
         <span class="icon">⚙️</span> Configuración
     </div>
     <div style="border-top:1px solid #333; margin:20px 0;"></div>
-    <div class="sidebar-item" onclick="if(confirm('¿Limpiar todos los datos?')){localStorage.clear();location.reload();}">
+    <div class="sidebar-item" onclick="borrarTodoLosDatos()">
         <span class="icon">🗑️</span> Limpiar Datos
     </div>
 </div>
@@ -2005,6 +2025,7 @@
             <span>📦 <b id="total-productos-header">0</b></span>
             <span>🎁 <b id="total-drops-header">0</b></span>
         </div>
+        <button class="menu-btn" onclick="cerrarSesion()" title="Cerrar sesión" style="font-size:22px; order:3;">🚪</button>
     </div>
 
     <div id="flash-messages"></div>
@@ -2360,7 +2381,7 @@
                 <p>📦 <span class="valor">Clientes:</span> <span id="priv-clientes-count">0</span></p>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:15px;">
-                <button class="btn btn-danger" onclick="if(confirm('¿Eliminar todos los datos?')){localStorage.clear();location.reload();}">🗑️ Eliminar Todo</button>
+                <button class="btn btn-danger" onclick="borrarTodoLosDatos()">🗑️ Eliminar Todo</button>
                 <button class="btn btn-success" onclick="exportarDatos()">📤 Exportar</button>
                 <button class="btn btn-azul" onclick="importarDatos()">📥 Importar</button>
                 <input type="file" id="file-importar" accept=".json" style="display:none" onchange="procesarImportacion(this)">
@@ -2425,6 +2446,114 @@
 </div>
 
 <script>
+// =============================================
+// LOGIN
+// =============================================
+const LOGIN_USUARIO = 'blon2007';
+const LOGIN_PASSWORD = 'blon2007';
+const SESION_KEY = 'blon_sesion_activa';
+
+function verificarSesion() {
+    if (localStorage.getItem(SESION_KEY) === 'ok') {
+        document.getElementById('pantallaLogin').style.display = 'none';
+        return true;
+    }
+    return false;
+}
+
+function intentarLogin() {
+    const usuario = document.getElementById('login-usuario').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errorDiv = document.getElementById('login-error');
+    if (usuario === LOGIN_USUARIO && password === LOGIN_PASSWORD) {
+        localStorage.setItem(SESION_KEY, 'ok');
+        document.getElementById('pantallaLogin').style.display = 'none';
+        errorDiv.style.display = 'none';
+        inicializar();
+    } else {
+        errorDiv.style.display = 'block';
+    }
+}
+
+function cerrarSesion() {
+    if (!confirm('¿Cerrar sesión?')) return;
+    localStorage.removeItem(SESION_KEY);
+    location.reload();
+}
+
+// =============================================
+// SUPABASE (sincronización en la nube)
+// =============================================
+// ⚠️ REEMPLAZA estos dos valores con los de TU proyecto de Supabase
+// (Project Settings → API → Project URL / anon public key)
+const SUPABASE_URL = 'TU_SUPABASE_URL_AQUI';
+const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY_AQUI';
+const ESTADO_ID = 'tienda_principal';
+let supabaseClient = null;
+let sincronizandoDesdeNube = false;
+try {
+    if (window.supabase && SUPABASE_URL && !SUPABASE_URL.includes('TU_SUPABASE') && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('TU_SUPABASE')) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+} catch (e) { console.error('Supabase no se pudo inicializar:', e); }
+
+async function cargarEstadoDesdeNube() {
+    if (!supabaseClient) return false;
+    try {
+        const { data, error } = await supabaseClient.from('estado_tienda').select('data').eq('id', ESTADO_ID).single();
+        if (error || !data || !data.data) return false;
+        sincronizandoDesdeNube = true;
+        estado = data.data;
+        if (!estado.config) estado.config = { nombre: 'Mi Tienda', logo: null, moneda: 'Bs' };
+        if (estado.contadorCliente === undefined) estado.contadorCliente = 0;
+        if (!estado.pedidos) estado.pedidos = [];
+        if (!estado.cargarPedidos) estado.cargarPedidos = [];
+        if (!estado.historialPedidos) estado.historialPedidos = [];
+        if (!estado.drops) estado.drops = [];
+        delete estado.carrito;
+        crearDropsIniciales();
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(estado)); } catch (e) {}
+        sincronizandoDesdeNube = false;
+        return true;
+    } catch (e) {
+        console.error('No se pudo cargar desde la nube:', e);
+        return false;
+    }
+}
+
+let guardarEnNubeTimeout = null;
+function programarGuardadoEnNube() {
+    if (!supabaseClient || sincronizandoDesdeNube) return;
+    clearTimeout(guardarEnNubeTimeout);
+    guardarEnNubeTimeout = setTimeout(guardarEnNube, 800);
+}
+async function guardarEnNube() {
+    if (!supabaseClient) return;
+    try {
+        await supabaseClient.from('estado_tienda').upsert({ id: ESTADO_ID, data: estado, updated_at: new Date().toISOString() });
+    } catch (e) { console.error('Error guardando en la nube:', e); }
+}
+
+async function borrarTodoLosDatos() {
+    if (!confirm('¿Seguro que quieres borrar TODOS los datos? Esto elimina inventario, ventas, clientes, drops, pedidos, configuración y el nombre de la tienda. No se puede deshacer.')) return;
+    if (!confirm('Última confirmación: ¿de verdad quieres dejar la tienda completamente vacía?')) return;
+    
+    const estadoVacio = {
+        productos: [], ventas: [], clientes: [], pedidos: [], cargarPedidos: [], historialPedidos: [], drops: [],
+        contadorCliente: 0, config: { nombre: 'Mi Tienda', logo: null, moneda: 'Bs', pantallaCompleta: false }
+    };
+    
+    try { localStorage.clear(); } catch(e) {}
+    
+    if (supabaseClient) {
+        try {
+            await supabaseClient.from('estado_tienda').upsert({ id: ESTADO_ID, data: estadoVacio, updated_at: new Date().toISOString() });
+        } catch(e) { console.error('No se pudo limpiar en la nube:', e); }
+    }
+    
+    location.reload();
+}
+
 // =============================================
 // ESTADO GLOBAL
 // =============================================
@@ -3062,6 +3191,7 @@ function renderizarMiniaturas(containerId, array, quitarFuncion) {
 // =============================================
 function guardarEstado() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(estado)); } catch(e) {}
+    programarGuardadoEnNube();
 }
 function cargarEstado() {
     try {
@@ -5455,8 +5585,9 @@ document.addEventListener('keydown', function(e) {
 // =============================================
 // INICIALIZAR - SIN PRODUCTO POR DEFECTO
 // =============================================
-function inicializar() {
-    cargarEstado();
+async function inicializar() {
+    const cargoDeNube = await cargarEstadoDesdeNube();
+    if (!cargoDeNube) cargarEstado();
     
     actualizarLogosSidebar();
     actualizarNombreSidebar();
@@ -5471,7 +5602,7 @@ function inicializar() {
     actualizarContadoresSidebar();
     setTimeout(actualizarDashboard, 200);
     verificarBannerPantallaCompleta();
-    notify('✅ Sistema cargado', 'success');
+    notify(cargoDeNube ? '☁️ Datos cargados desde la nube' : '✅ Sistema cargado', 'success');
 }
 
 let resizeTimeout;
@@ -5495,7 +5626,9 @@ document.addEventListener('webkitfullscreenchange', () => {
     }
 });
 
-inicializar();
+if (verificarSesion()) {
+    inicializar();
+}
 </script>
 </body>
 </html>
