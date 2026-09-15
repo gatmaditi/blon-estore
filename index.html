@@ -1943,6 +1943,12 @@
             <label>📏 Talla</label>
             <div class="talla-venta-grid" id="venta-talla-grid"></div>
         </div>
+        <div class="campo">
+            <label>🔢 Cantidad</label>
+            <input type="number" id="venta-cantidad" value="1" min="1" onwheel="this.blur()">
+        </div>
+        <div id="venta-items-lista"></div>
+        <button class="btn btn-secondary" style="width:100%;margin:5px 0 10px;" onclick="abrirModalAgregarItemVenta()">➕ Agregar otro producto a esta venta</button>
         <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
             <div class="campo">
                 <label>💳 Método de pago</label>
@@ -1974,6 +1980,30 @@
             <button class="btn btn-secondary" onclick="cerrarModalVenta()">❌ Cancelar</button>
             <button class="btn btn-venta" id="btn-finalizar-venta" onclick="finalizarVentaDesdeModal()">✅ FINALIZAR VENTA</button>
         </div>
+    </div>
+</div>
+
+<!-- MODAL AGREGAR ITEM A LA VENTA -->
+<div class="modal-cargar-pedidos" id="modalAgregarItemVenta" onclick="if(event.target===this) cerrarModalAgregarItemVenta()">
+    <div class="contenido">
+        <h2>➕ Agregar Producto a esta Venta</h2>
+        <div id="item-venta-lista-productos" class="eliminar-lista"></div>
+        <div id="item-venta-detalle" style="display:none;">
+            <div id="item-venta-info"></div>
+            <div class="campo" id="item-venta-talla-container" style="display:none;">
+                <label>📏 Talla</label>
+                <div class="talla-venta-grid" id="item-venta-talla-grid"></div>
+            </div>
+            <div class="campo">
+                <label>🔢 Cantidad</label>
+                <input type="number" id="item-venta-cantidad" value="1" min="1" onwheel="this.blur()">
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="volverListaItemVenta()">← Volver</button>
+                <button class="btn btn-verde" style="flex:1;" onclick="confirmarAgregarItemVenta()">✅ Agregar</button>
+            </div>
+        </div>
+        <button class="btn btn-secondary" style="width:100%;margin-top:10px;" onclick="cerrarModalAgregarItemVenta()">✕ Cerrar</button>
     </div>
 </div>
 
@@ -2056,8 +2086,11 @@
                 <button class="filtro-btn active" data-filtro="todos" onclick="aplicarFiltro('todos')"><span class="dot gris"></span> TODO</button>
                 <button class="filtro-btn" data-filtro="stock" onclick="aplicarFiltro('stock')"><span class="dot verde"></span> STOCK</button>
                 <button class="filtro-btn" data-filtro="pedido" onclick="aplicarFiltro('pedido')"><span class="dot azul"></span> PEDIDO</button>
-                <button class="filtro-btn" data-filtro="sinstock" onclick="aplicarFiltro('sinstock')"><span class="dot rojo"></span> SIN STOCK</button>
+                <select id="filtro-drop-inv" onchange="renderizarProductos()" style="width:auto; padding:8px 12px; border-radius:20px; font-size:13px;">
+                    <option value="">🎁 Ver por Drop...</option>
+                </select>
             </div>
+            <p style="color:#666; font-size:11px; margin:8px 0 0;">ℹ️ Los productos sin stock ya vendidos desaparecen de acá automáticamente — elegí un Drop arriba para ver todo lo que se vendió de ese drop.</p>
             <div id="lista-productos" class="productos-grid"></div>
         </div>
     </div>
@@ -2113,7 +2146,12 @@
     <!-- VENTAS -->
     <div id="seccion-ventas" class="seccion">
         <div class="card">
-            <h2>💰 Historial de Ventas</h2>
+            <div class="pedido-header">
+                <h2>💰 Historial de Ventas</h2>
+                <select id="filtro-drop-ventas" onchange="cambiarDropVentas()" style="width:auto; padding:8px 12px; font-size:13px;">
+                    <option value="">Todas las ventas</option>
+                </select>
+            </div>
             <div id="lista-ventas" class="ventas-grid"></div>
             <div style="margin-top:15px; display:flex; gap:10px; flex-wrap:wrap;">
                 <button class="btn btn-danger" onclick="if(confirm('¿Eliminar todas las ventas?')){estado.ventas=[];guardarEstado();renderizarVentas();actualizarDashboard();notify('🗑️ Ventas eliminadas','success');}">🗑️ Limpiar</button>
@@ -2174,7 +2212,7 @@
                     <div class="drop-stat-valor" id="drop-stat-total">Bs 0.00</div>
                 </div>
             </div>
-            <button class="btn btn-azul" style="width:100%;margin-bottom:20px;" onclick="reinvertirCapitalDrop()">🔄 Usar el Total como nuevo Capital (reinvertir)</button>
+            <button class="btn btn-azul" style="width:100%;margin-bottom:20px;" onclick="reinvertirCapitalDrop()">🔄 Pasar el Total como Capital al Siguiente Drop</button>
             
             <div class="card" style="background:#0d0d0f;margin-bottom:20px;">
                 <h2 style="font-size:16px;">⚡ Ventas Rápidas (no suman al capital)</h2>
@@ -2353,7 +2391,13 @@
             </div>
         </div>
         <div class="card" id="cliente-estrella-card" style="display:none;">
-            <h2>⭐ Cliente Estrella</h2>
+            <div class="pedido-header">
+                <h2>⭐ Cliente Estrella</h2>
+                <select id="criterio-cliente-estrella" onchange="renderizarClientes()" style="width:auto; padding:8px 12px; font-size:13px;">
+                    <option value="compras">🛒 El que más compró</option>
+                    <option value="gastado">💰 El que más gastó</option>
+                </select>
+            </div>
             <div id="cliente-estrella-contenido"></div>
         </div>
         <div class="card">
@@ -2378,6 +2422,7 @@
                 <p>🕐 <span class="valor">Último guardado en la nube:</span> <span id="priv-supabase-ultima">-</span></p>
             </div>
             <button class="btn btn-azul" style="margin-top:10px;" onclick="probarConexionSupabase()">🔄 Probar Conexión</button>
+            <p style="color:#666; font-size:11px; margin-top:8px;">ℹ️ Esto es solo para revisar el estado — cada cambio que haces en la tienda (agregar producto, vender, etc.) se guarda solo en la nube, no hace falta apretar nada.</p>
         </div>
         <div class="card">
             <h2>🔒 Privacidad</h2>
@@ -2589,6 +2634,9 @@ let zoomEntregaActual = 1;
 let tallasSeleccionadas = {};
 let tallasPedidoSeleccionadas = {};
 let ventaTallaSeleccionada = null;
+let ventaItemsAdicionales = [];
+let itemVentaSeleccionado = null;
+let itemVentaTallaElegida = null;
 let pedirProductoIndex = null;
 let pedirProductoEsPedido = false;
 let pedirTallasSeleccionadas = [];
@@ -2652,6 +2700,14 @@ function renderizarSidebarDrops() {
     container.innerHTML = html;
     const badge = document.getElementById('sidebar-drops-count');
     if (badge) badge.textContent = estado.drops.length;
+    
+    const selectInv = document.getElementById('filtro-drop-inv');
+    if (selectInv) {
+        const valorActual = selectInv.value;
+        selectInv.innerHTML = '<option value="">🎁 Ver por Drop...</option>' +
+            estado.drops.map(d => `<option value="${d.id}">${d.nombre}</option>`).join('');
+        selectInv.value = valorActual;
+    }
 }
 
 function navegarAPrimerDrop() {
@@ -2881,17 +2937,27 @@ function reinvertirCapitalDrop() {
     if (!drop) return;
     const stats = calcularStatsDrop(drop);
     const nuevoCapital = stats.total - stats.prestamos;
-    let mensaje = `¿Usar ${formatMoney(stats.total)} como tu nuevo capital?`;
+    
+    let dropSiguiente = estado.drops.find(d => d.numero === drop.numero + 1);
+    const esNuevo = !dropSiguiente;
+    
+    let mensaje = `¿Pasar ${formatMoney(nuevoCapital)} como capital de "${esNuevo ? 'Drop ' + (drop.numero + 1) + ' (se va a crear)' : dropSiguiente.nombre}"?`;
     if (stats.prestamos > 0) {
-        mensaje += ` Se descuentan ${formatMoney(stats.prestamos)} de préstamos (se dan por pagados) y tu nuevo capital propio queda en ${formatMoney(nuevoCapital)}.`;
+        mensaje += ` Se descuentan ${formatMoney(stats.prestamos)} de préstamos de este drop (se dan por pagados).`;
     }
-    mensaje += ' Esto reinicia la ganancia de este drop a cero.';
     if (!confirm(mensaje)) return;
-    drop.capital = nuevoCapital;
+    
+    if (esNuevo) {
+        dropSiguiente = { id: generarId(), numero: drop.numero + 1, nombre: 'Drop ' + (drop.numero + 1), capital: 0, productos: [], prestamos: [] };
+        estado.drops.push(dropSiguiente);
+    }
+    dropSiguiente.capital = (parseFloat(dropSiguiente.capital) || 0) + nuevoCapital;
     drop.prestamos = [];
+    
     guardarEstado();
-    renderizarDropDetalle();
-    notify(`✅ Capital actualizado a ${formatMoney(nuevoCapital)}`, 'success');
+    renderizarSidebarDrops();
+    notify(`✅ ${formatMoney(nuevoCapital)} pasado como capital de "${dropSiguiente.nombre}"`, 'success');
+    navegarADrop(dropSiguiente.id);
 }
 
 function abrirModalAgregarPrestamo() {
@@ -3256,6 +3322,7 @@ function navegarA(seccion) {
     if (seccion === 'cargar') renderizarCargarPedidos();
     if (seccion === 'historial') renderizarHistorial();
     if (seccion === 'productos') renderizarProductos();
+    if (seccion === 'ventas') renderizarVentas();
 }
 
 // =============================================
@@ -3874,12 +3941,19 @@ function renderizarProductos() {
     const container = document.getElementById('lista-productos');
     let productosFiltrados = [...estado.productos];
     
-    if (filtroActual === 'stock') {
+    const dropSeleccionado = document.getElementById('filtro-drop-inv')?.value || '';
+    
+    if (dropSeleccionado) {
+        const drop = estado.drops.find(d => d.id === dropSeleccionado);
+        const idsDelDrop = drop ? drop.productos.map(p => p.ref) : [];
+        productosFiltrados = productosFiltrados.filter(p => idsDelDrop.includes(p.id));
+    } else if (filtroActual === 'stock') {
         productosFiltrados = productosFiltrados.filter(p => p.stock > 0);
     } else if (filtroActual === 'pedido') {
         productosFiltrados = productosFiltrados.filter(p => p.tipo === 'pedido');
-    } else if (filtroActual === 'sinstock') {
-        productosFiltrados = productosFiltrados.filter(p => p.stock === 0 && p.tipo !== 'pedido');
+    } else {
+        // 'todos': se ocultan automáticamente los productos de stock ya vendidos (sin stock)
+        productosFiltrados = productosFiltrados.filter(p => p.tipo === 'pedido' || p.stock > 0);
     }
     
     if (productosFiltrados.length === 0) {
@@ -4770,12 +4844,15 @@ function abrirModalVenta(index) {
     }
     ventaEditandoIndex = null;
     fotosEntregaSeleccionadas = [];
+    ventaItemsAdicionales = [];
     document.getElementById('preview-fotos-entrega').innerHTML = '';
     document.getElementById('venta-fotos').value = '';
     document.getElementById('venta-cliente').value = '';
     document.getElementById('venta-telefono').value = '';
     document.getElementById('venta-pago').value = 'Efectivo';
     document.getElementById('venta-descuento').value = '0';
+    document.getElementById('venta-cantidad').value = '1';
+    renderizarItemsVentaLista();
     
     ventaTallaSeleccionada = null;
     renderizarTallasVenta(producto);
@@ -4794,6 +4871,7 @@ function abrirModalVenta(index) {
     actualizarResumenVenta();
     document.getElementById('modalVenta').classList.add('active');
     document.getElementById('venta-descuento').oninput = actualizarResumenVenta;
+    document.getElementById('venta-cantidad').oninput = actualizarResumenVenta;
     document.getElementById('venta-pago').onchange = actualizarResumenVenta;
     const btn = document.getElementById('btn-finalizar-venta');
     btn.textContent = '✅ FINALIZAR VENTA';
@@ -4830,11 +4908,146 @@ function renderizarTallasVenta(producto) {
 function actualizarResumenVenta() {
     const producto = estado.productos[ventaProductoIndex];
     if (!producto) return;
+    const cantidadPrincipal = parseInt(document.getElementById('venta-cantidad').value) || 1;
+    const subtotalPrincipal = producto.precio * cantidadPrincipal;
+    const subtotalAdicionales = ventaItemsAdicionales.reduce((s, i) => s + i.precio * i.cantidad, 0);
+    const subtotalGeneral = subtotalPrincipal + subtotalAdicionales;
     const descuento = parseFloat(document.getElementById('venta-descuento').value) || 0;
-    const total = Math.max(0, producto.precio - descuento);
-    document.getElementById('venta-precio-mostrar').textContent = formatMoney(producto.precio);
+    const total = Math.max(0, subtotalGeneral - descuento);
+    document.getElementById('venta-precio-mostrar').textContent = formatMoney(subtotalGeneral);
     document.getElementById('venta-descuento-mostrar').textContent = formatMoney(descuento);
     document.getElementById('venta-total-mostrar').textContent = formatMoney(total);
+}
+
+function renderizarItemsVentaLista() {
+    const container = document.getElementById('venta-items-lista');
+    if (!container) return;
+    if (ventaItemsAdicionales.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    let html = '<div style="margin:10px 0;"><label style="display:block;font-size:13px;color:#aaa;margin-bottom:5px;">🧺 Otros productos en esta venta</label>';
+    ventaItemsAdicionales.forEach((item, idx) => {
+        html += `
+            <div class="eliminar-item">
+                <div class="info"><div>
+                    <div class="nombre">${item.nombre}${item.talla !== 'No especificada' ? ' (' + item.talla + ')' : ''} x${item.cantidad}</div>
+                    <div class="precio">${formatMoney(item.precio * item.cantidad)}</div>
+                </div></div>
+                <button class="btn-eliminar" onclick="quitarItemVenta(${idx})">✕</button>
+            </div>
+        `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function quitarItemVenta(idx) {
+    ventaItemsAdicionales.splice(idx, 1);
+    renderizarItemsVentaLista();
+    actualizarResumenVenta();
+}
+
+// =============================================
+// AGREGAR OTRO PRODUCTO A LA MISMA VENTA
+// =============================================
+function abrirModalAgregarItemVenta() {
+    document.getElementById('item-venta-detalle').style.display = 'none';
+    const container = document.getElementById('item-venta-lista-productos');
+    container.style.display = 'block';
+    
+    const productoIdPrincipal = ventaProductoIndex !== null ? estado.productos[ventaProductoIndex].id : null;
+    const yaAgregados = [productoIdPrincipal, ...ventaItemsAdicionales.map(i => i.productoId)];
+    
+    let html = '';
+    estado.productos.forEach((p, idx) => {
+        if (p.stock <= 0 || p.tipo === 'pedido') return;
+        if (yaAgregados.includes(p.id)) return;
+        const imgHtml = p.portada ? `<img src="${p.portada}" style="width:40px;height:40px;object-fit:contain;border-radius:6px;">` : '<span style="font-size:20px;">📦</span>';
+        html += `
+            <div class="eliminar-item" style="cursor:pointer;" onclick="elegirProductoParaItemVenta(${idx})">
+                <div class="info">${imgHtml}<div><div class="nombre">${p.nombre}</div><div class="precio">${formatMoney(p.precio)} · Stock: ${p.stock}</div></div></div>
+            </div>
+        `;
+    });
+    if (!html) html = `<div class="empty"><p>No hay más productos con stock para agregar</p></div>`;
+    container.innerHTML = html;
+    document.getElementById('modalAgregarItemVenta').classList.add('active');
+}
+
+function elegirProductoParaItemVenta(index) {
+    const producto = estado.productos[index];
+    if (!producto) return;
+    itemVentaSeleccionado = { producto, index };
+    itemVentaTallaElegida = null;
+    
+    document.getElementById('item-venta-lista-productos').style.display = 'none';
+    document.getElementById('item-venta-detalle').style.display = 'block';
+    document.getElementById('item-venta-info').innerHTML = `
+        <div class="producto-info">
+            <img src="${producto.portada || ''}" alt="${producto.nombre}">
+            <div class="detalle"><div class="nombre">${producto.nombre}</div><div class="precio">${formatMoney(producto.precio)}</div></div>
+        </div>
+    `;
+    document.getElementById('item-venta-cantidad').value = 1;
+    
+    const tallaContainer = document.getElementById('item-venta-talla-container');
+    const tallaGrid = document.getElementById('item-venta-talla-grid');
+    if (producto.tallas && Object.keys(producto.tallas).length > 0) {
+        tallaContainer.style.display = 'block';
+        tallaGrid.innerHTML = '';
+        Object.entries(producto.tallas).forEach(([talla, cant]) => {
+            const chip = document.createElement('div');
+            const sinStock = cant <= 0;
+            chip.className = 'talla-venta-chip' + (sinStock ? ' sin-stock' : '');
+            chip.textContent = talla;
+            if (!sinStock) {
+                chip.onclick = function() {
+                    document.querySelectorAll('#item-venta-talla-grid .talla-venta-chip').forEach(c => c.classList.remove('seleccionada'));
+                    this.classList.add('seleccionada');
+                    itemVentaTallaElegida = talla;
+                };
+            }
+            tallaGrid.appendChild(chip);
+        });
+    } else {
+        tallaContainer.style.display = 'none';
+    }
+}
+
+function volverListaItemVenta() {
+    abrirModalAgregarItemVenta();
+}
+
+function confirmarAgregarItemVenta() {
+    if (!itemVentaSeleccionado) return;
+    const producto = itemVentaSeleccionado.producto;
+    const tieneTallas = producto.tallas && Object.keys(producto.tallas).length > 0;
+    if (tieneTallas && !itemVentaTallaElegida) { notify('❌ Selecciona una talla', 'error'); return; }
+    const cantidad = parseInt(document.getElementById('item-venta-cantidad').value) || 1;
+    if (cantidad <= 0) { notify('❌ Cantidad inválida', 'error'); return; }
+    const disponible = tieneTallas ? (producto.tallas[itemVentaTallaElegida] || 0) : producto.stock;
+    if (cantidad > disponible) { notify(`❌ Solo hay ${disponible} disponibles`, 'error'); return; }
+    
+    ventaItemsAdicionales.push({
+        productoId: producto.id,
+        nombre: producto.nombre,
+        precio: producto.precio,
+        portada: producto.portada || null,
+        talla: tieneTallas ? itemVentaTallaElegida : 'No especificada',
+        cantidad: cantidad
+    });
+    
+    cerrarModalAgregarItemVenta();
+    renderizarItemsVentaLista();
+    actualizarResumenVenta();
+    notify(`✅ ${producto.nombre} agregado a la venta`, 'success');
+}
+
+function cerrarModalAgregarItemVenta() {
+    document.getElementById('modalAgregarItemVenta').classList.remove('active');
+    itemVentaSeleccionado = null;
+    itemVentaTallaElegida = null;
 }
 
 function cerrarModalVenta() {
@@ -4842,6 +5055,7 @@ function cerrarModalVenta() {
     ventaProductoIndex = null;
     ventaEditandoIndex = null;
     ventaTallaSeleccionada = null;
+    ventaItemsAdicionales = [];
     fotosEntregaSeleccionadas = [];
     document.getElementById('preview-fotos-entrega').innerHTML = '';
     document.getElementById('venta-fotos').value = '';
@@ -4859,50 +5073,83 @@ function finalizarVentaDesdeModal() {
         notify('❌ Selecciona una talla', 'error');
         return;
     }
-    if (tieneTallas && (producto.tallas[ventaTallaSeleccionada] || 0) <= 0) {
-        notify('❌ Esa talla no tiene stock', 'error');
+    
+    const cantidadPrincipal = parseInt(document.getElementById('venta-cantidad').value) || 1;
+    const disponiblePrincipal = tieneTallas ? (producto.tallas[ventaTallaSeleccionada] || 0) : producto.stock;
+    if (cantidadPrincipal <= 0) { notify('❌ Cantidad inválida', 'error'); return; }
+    if (cantidadPrincipal > disponiblePrincipal) {
+        notify(`❌ Solo hay ${disponiblePrincipal} disponibles`, 'error');
         return;
     }
     
     const clienteEscrito = document.getElementById('venta-cliente').value.trim();
     const telefonoVenta = document.getElementById('venta-telefono').value.trim();
     const cliente = clienteEscrito || `Cliente ${estado.contadorCliente + 1}`;
-    const talla = tieneTallas ? ventaTallaSeleccionada : 'No especificada';
     const pago = document.getElementById('venta-pago').value;
-    const descuento = parseFloat(document.getElementById('venta-descuento').value) || 0;
-    const total = Math.max(0, producto.precio - descuento);
+    const descuentoTotal = parseFloat(document.getElementById('venta-descuento').value) || 0;
     const ahora = getFechaHora();
+    const transaccionId = generarId();
     
-    const venta = {
-        id: generarId(),
-        productoId: producto.id,
-        productoNombre: producto.nombre,
-        productoPrecio: producto.precio,
-        productoPortada: producto.portada || null,
-        cliente: cliente,
-        telefono: telefonoVenta || 'No especificado',
-        talla: talla,
-        pago: pago,
-        descuento: descuento,
-        total: total,
-        fecha: ahora.fecha,
-        hora: ahora.hora,
-        fechaFull: ahora.full,
-        timestamp: ahora.timestamp,
-        fotosEntrega: fotosEntregaSeleccionadas.slice(),
-        estado: 'completada'
-    };
+    const itemsAVender = [{
+        producto: producto,
+        talla: tieneTallas ? ventaTallaSeleccionada : 'No especificada',
+        cantidad: cantidadPrincipal,
+        precio: producto.precio,
+        esPrincipal: true
+    }];
     
-    if (tieneTallas) {
-        producto.tallas[ventaTallaSeleccionada] -= 1;
-        producto.stock = Object.values(producto.tallas).reduce((s, c) => s + c, 0);
-    } else {
-        producto.stock -= 1;
+    for (const item of ventaItemsAdicionales) {
+        const prod = estado.productos.find(p => p.id === item.productoId);
+        if (!prod) { notify(`❌ "${item.nombre}" ya no existe en inventario`, 'error'); return; }
+        const tieneT = prod.tallas && Object.keys(prod.tallas).length > 0;
+        const disp = tieneT ? (prod.tallas[item.talla] || 0) : prod.stock;
+        if (item.cantidad > disp) { notify(`❌ "${prod.nombre}" ya no tiene suficiente stock`, 'error'); return; }
+        itemsAVender.push({ producto: prod, talla: item.talla, cantidad: item.cantidad, precio: item.precio, esPrincipal: false });
     }
     
+    const subtotalGeneral = itemsAVender.reduce((s, i) => s + i.precio * i.cantidad, 0);
+    const totalGeneral = Math.max(0, subtotalGeneral - descuentoTotal);
+    
+    itemsAVender.forEach(item => {
+        const subtotalItem = item.precio * item.cantidad;
+        const descuentoItem = subtotalGeneral > 0 ? descuentoTotal * (subtotalItem / subtotalGeneral) : 0;
+        const totalItem = Math.max(0, subtotalItem - descuentoItem);
+        
+        const venta = {
+            id: generarId(),
+            transaccionId: transaccionId,
+            productoId: item.producto.id,
+            productoNombre: item.producto.nombre,
+            productoPrecio: item.precio,
+            productoPortada: item.producto.portada || null,
+            cliente: cliente,
+            telefono: telefonoVenta || 'No especificado',
+            talla: item.talla,
+            cantidad: item.cantidad,
+            pago: pago,
+            descuento: descuentoItem,
+            total: totalItem,
+            fecha: ahora.fecha,
+            hora: ahora.hora,
+            fechaFull: ahora.full,
+            timestamp: ahora.timestamp,
+            fotosEntrega: item.esPrincipal ? fotosEntregaSeleccionadas.slice() : [],
+            estado: 'completada'
+        };
+        
+        if (item.talla !== 'No especificada' && item.producto.tallas) {
+            item.producto.tallas[item.talla] -= item.cantidad;
+            item.producto.stock = Object.values(item.producto.tallas).reduce((s, c) => s + c, 0);
+        } else {
+            item.producto.stock -= item.cantidad;
+        }
+        
+        estado.ventas.push(venta);
+    });
+    
     if (!clienteEscrito) estado.contadorCliente += 1;
-    registrarCompraCliente(cliente, total, telefonoVenta || null);
-    estado.ventas.push(venta);
+    registrarCompraCliente(cliente, totalGeneral, telefonoVenta || null);
+    
     guardarEstado();
     renderizarProductos();
     renderizarVentas();
@@ -4911,7 +5158,7 @@ function finalizarVentaDesdeModal() {
     actualizarDashboard();
     actualizarContadoresSidebar();
     cerrarModalVenta();
-    notify(`✅ Venta de "${producto.nombre}" completada`, 'success');
+    notify(`✅ Venta completada${itemsAVender.length > 1 ? ' (' + itemsAVender.length + ' productos)' : ''}`, 'success');
 }
 
 function registrarCompraCliente(nombreCliente, montoTotal, telefono) {
@@ -4964,19 +5211,50 @@ function cerrarClienteDropdown() {
 // =============================================
 // VENTAS - RENDERIZAR
 // =============================================
+function poblarSelectDropVentas() {
+    const select = document.getElementById('filtro-drop-ventas');
+    if (!select) return;
+    const opciones = '<option value="">Todas las ventas</option>' +
+        estado.drops.map(d => `<option value="${d.id}">${d.nombre}</option>`).join('');
+    select.innerHTML = opciones;
+    
+    if (estado.config.filtroDropVentas === undefined) {
+        estado.config.filtroDropVentas = estado.drops.length > 0 ? estado.drops[0].id : '';
+    }
+    select.value = estado.config.filtroDropVentas || '';
+}
+
+function cambiarDropVentas() {
+    const select = document.getElementById('filtro-drop-ventas');
+    estado.config.filtroDropVentas = select.value;
+    guardarEstado();
+    renderizarVentas();
+}
+
 function renderizarVentas() {
+    poblarSelectDropVentas();
     const container = document.getElementById('lista-ventas');
-    if (estado.ventas.length === 0) {
-        container.innerHTML = `<div class="empty"><span class="icon">💰</span><p>No hay ventas</p></div>`;
+    
+    const dropId = estado.config.filtroDropVentas || '';
+    let ventasFiltradas = estado.ventas;
+    if (dropId) {
+        const drop = estado.drops.find(d => d.id === dropId);
+        const idsDelDrop = drop ? drop.productos.map(p => p.ref) : [];
+        ventasFiltradas = estado.ventas.filter(v => idsDelDrop.includes(v.productoId));
+    }
+    
+    if (ventasFiltradas.length === 0) {
+        container.innerHTML = `<div class="empty"><span class="icon">💰</span><p>No hay ventas ${dropId ? 'en este drop' : ''}</p></div>`;
         return;
     }
     let html = '';
-    estado.ventas.forEach((v, index) => {
+    ventasFiltradas.slice().reverse().forEach((v) => {
+        const index = estado.ventas.indexOf(v);
         const imgHtml = v.productoPortada ? `<img src="${v.productoPortada}" alt="${v.productoNombre}">` : `<div class="sin-imagen">📦</div>`;
         html += `
             <div class="venta-card" onclick="abrirDetalleVenta(${index})">
                 <div class="imagen-container">${imgHtml}</div>
-                <div class="nombre">${v.productoNombre}</div>
+                <div class="nombre">${v.productoNombre}${v.cantidad > 1 ? ' x' + v.cantidad : ''}</div>
                 <div class="precio">${formatMoney(v.total)}</div>
                 <div class="cliente">👤 ${v.cliente}</div>
                 <div class="fecha">📅 ${v.fecha} ${v.hora}</div>
@@ -5003,12 +5281,27 @@ function abrirDetalleVenta(index) {
     } else {
         fotosHtml = '<p style="color:#888;font-size:13px;">📷 No hay fotos</p>';
     }
+    let otrosProductosHtml = '';
+    if (venta.transaccionId) {
+        const hermanos = estado.ventas.filter(v => v.transaccionId === venta.transaccionId && v.id !== venta.id);
+        if (hermanos.length > 0) {
+            otrosProductosHtml = `
+                <div class="productos-venta" style="margin-top:10px;">
+                    <div style="font-weight:bold;margin-bottom:8px;color:#ff8800;">🧾 Otros productos de esta misma compra</div>
+                    ${hermanos.map(h => `<div class="item-prod"><span>${h.productoNombre}${h.cantidad > 1 ? ' x' + h.cantidad : ''}</span><span>${formatMoney(h.total)}</span></div>`).join('')}
+                    <div class="item-prod" style="border-top:1px solid #333;padding-top:6px;margin-top:6px;"><span><b>Total de la compra</b></span><span><b>${formatMoney(venta.total + hermanos.reduce((s, h) => s + h.total, 0))}</b></span></div>
+                </div>
+            `;
+        }
+    }
+    
     container.innerHTML = `
         <div class="info-venta">
             <div class="item"><span class="label">📋 Venta #</span><span class="valor">${index + 1}</span></div>
             <div class="item"><span class="label">📅 Fecha</span><span class="valor">${venta.fecha}</span></div>
             <div class="item"><span class="label">⏰ Hora</span><span class="valor">${venta.hora}</span></div>
             <div class="item"><span class="label">👤 Cliente</span><span class="valor">${venta.cliente}</span></div>
+            <div class="item"><span class="label">🔢 Cantidad</span><span class="valor">${venta.cantidad || 1}</span></div>
             <div class="item"><span class="label">📏 Talla</span><span class="valor">${venta.talla || 'No especificada'}</span></div>
             <div class="item"><span class="label">💳 Pago</span><span class="valor">${venta.pago}</span></div>
             <div class="item"><span class="label">💰 Descuento</span><span class="valor">${formatMoney(venta.descuento || 0)}</span></div>
@@ -5016,9 +5309,10 @@ function abrirDetalleVenta(index) {
         </div>
         <div class="productos-venta">
             <div style="font-weight:bold;margin-bottom:8px;color:#ff8800;">📦 Producto</div>
-            <div class="item-prod"><span>${venta.productoNombre}</span><span>${formatMoney(venta.productoPrecio)}</span></div>
+            <div class="item-prod"><span>${venta.productoNombre}${venta.cantidad > 1 ? ' x' + venta.cantidad : ''}</span><span>${formatMoney(venta.productoPrecio)}</span></div>
             ${venta.productoPortada ? `<div style="margin-top:8px;text-align:center;"><img src="${venta.productoPortada}" style="max-width:150px;max-height:150px;object-fit:contain;border-radius:8px;"></div>` : ''}
         </div>
+        ${otrosProductosHtml}
         <div style="margin-top:10px;"><div style="font-weight:bold;margin-bottom:8px;color:#ff8800;">📸 Fotos de entrega</div>${fotosHtml}</div>
         <div style="margin-top:10px;background:#0d0d0f;border-radius:8px;padding:10px;">
             <div style="font-size:12px;color:#888;">📌 Estado: <span class="badge-venta">${venta.estado || 'completada'}</span></div>
@@ -5270,16 +5564,41 @@ function abrirDetalleCliente(id) {
         </div>
     `;
     
-    html += `<h3 style="color:#ff8800;margin-bottom:10px;">📦 Productos comprados</h3>`;
+    html += `<h3 style="color:#ff8800;margin-bottom:10px;">📦 Compras realizadas</h3>`;
     if (ventasCliente.length === 0 && pedidosEntregados.length === 0) {
         html += `<div class="empty" style="padding:20px;"><p>Sin compras registradas todavía</p></div>`;
     } else {
+        const gruposPorTransaccion = {};
+        const sinTransaccion = [];
         ventasCliente.forEach(v => {
+            if (v.transaccionId) {
+                if (!gruposPorTransaccion[v.transaccionId]) gruposPorTransaccion[v.transaccionId] = [];
+                gruposPorTransaccion[v.transaccionId].push(v);
+            } else {
+                sinTransaccion.push(v);
+            }
+        });
+        
+        const gruposOrdenados = Object.values(gruposPorTransaccion).sort((a, b) => (b[0].timestamp || 0) - (a[0].timestamp || 0));
+        gruposOrdenados.forEach(grupo => {
+            const totalGrupo = grupo.reduce((s, v) => s + v.total, 0);
+            const drops = [...new Set(grupo.map(v => obtenerDropDeProducto(v.productoId)).filter(Boolean))];
+            const itemsTexto = grupo.map(v => `${v.productoNombre}${v.talla && v.talla !== 'No especificada' ? ' (' + v.talla + ')' : ''}${v.cantidad > 1 ? ' x' + v.cantidad : ''}`).join(', ');
+            html += `
+                <div class="eliminar-item">
+                    <div class="info"><div>
+                        <div class="nombre">🧾 ${itemsTexto}</div>
+                        <div class="precio">${formatMoney(totalGrupo)} · 📅 ${grupo[0].fecha} ${grupo[0].hora}${drops.length ? ' · 🎁 ' + drops.join(', ') : ''}</div>
+                    </div></div>
+                </div>
+            `;
+        });
+        sinTransaccion.slice().reverse().forEach(v => {
             const dropNombre = obtenerDropDeProducto(v.productoId);
             html += `
                 <div class="eliminar-item">
                     <div class="info"><div>
-                        <div class="nombre">${v.productoNombre}</div>
+                        <div class="nombre">${v.productoNombre}${v.cantidad > 1 ? ' x' + v.cantidad : ''}</div>
                         <div class="precio">${formatMoney(v.total)} · 📅 ${v.fecha} ${v.hora}${dropNombre ? ' · 🎁 ' + dropNombre : ''}</div>
                     </div></div>
                 </div>
@@ -5340,10 +5659,15 @@ function renderizarClientes() {
         return;
     }
     
-    const clientesOrdenados = [...estado.clientes].sort((a, b) => (b.compras || 0) - (a.compras || 0));
+    const criterioSelect = document.getElementById('criterio-cliente-estrella');
+    const criterio = criterioSelect ? criterioSelect.value : 'compras';
+    const clientesOrdenados = criterio === 'gastado'
+        ? [...estado.clientes].sort((a, b) => (b.total_gastado || 0) - (a.total_gastado || 0))
+        : [...estado.clientes].sort((a, b) => (b.compras || 0) - (a.compras || 0));
     const estrella = clientesOrdenados[0];
+    const tieneDatos = estrella && (criterio === 'gastado' ? (estrella.total_gastado || 0) > 0 : (estrella.compras || 0) > 0);
     
-    if (estrella && (estrella.compras || 0) > 0) {
+    if (tieneDatos) {
         estrellaCard.style.display = 'block';
         estrellaContenido.innerHTML = `
             <div class="cliente-item" style="border:1px solid #ff8800;border-radius:8px;padding:12px;background:#ff880011;cursor:pointer;" onclick="abrirDetalleCliente('${estrella.id}')">
