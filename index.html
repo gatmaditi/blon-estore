@@ -1705,6 +1705,10 @@
         <span class="badge" id="sidebar-drops-count">0</span>
     </div>
     <div class="sidebar-sub" id="sidebar-drops-list"></div>
+    <div class="sidebar-item" onclick="navegarA('estimado')">
+        <span class="icon">⏳</span> Estimado
+        <span class="badge" id="sidebar-estimado-count">0</span>
+    </div>
     <div class="sidebar-item" onclick="navegarA('pedidos')">
         <span class="icon">📦</span> Productos a Pedido
         <span class="badge" id="sidebar-pedidos-count">0</span>
@@ -2352,6 +2356,57 @@
     </div>
 
     <!-- PEDIDOS (Productos a Pedido) -->
+    <!-- ESTIMADO (días de llegada de cada drop) -->
+    <div id="seccion-estimado" class="seccion">
+        <div class="card">
+            <div class="pedido-header">
+                <h2>⏳ Estimado de Llegada</h2>
+                <button class="btn btn-azul" onclick="abrirModalAgregarEstimado()">➕ Agregar</button>
+            </div>
+            <p style="color:#666; font-size:11px; margin:0 0 15px;">ℹ️ Acá solo se cuentan los días que tarda en llegar cada paquete. No toca el inventario ni el stock de nada.</p>
+            <div id="lista-estimado"></div>
+        </div>
+    </div>
+
+    <!-- MODAL AGREGAR ESTIMADO -->
+    <div class="modal-cargar-pedidos" id="modalAgregarEstimado" onclick="if(event.target===this) cerrarModalAgregarEstimado()">
+        <div class="contenido">
+            <h2>➕ Armar Paquete de un Drop</h2>
+            <p style="color:#888;font-size:12px;margin-bottom:12px;">Elegí el drop y se junta todo lo que le agregaste como un solo paquete.</p>
+            <div id="lista-drops-estimado" class="eliminar-lista"></div>
+            <button class="btn btn-secondary" style="width:100%;margin-top:15px;" onclick="cerrarModalAgregarEstimado()">✕ Cerrar</button>
+        </div>
+    </div>
+
+    <!-- MODAL DETALLE ESTIMADO -->
+    <div class="modal-cargar-pedidos" id="modalDetalleEstimado" onclick="if(event.target===this) cerrarModalDetalleEstimado()">
+        <div class="contenido">
+            <h2 id="detalle-estimado-titulo">⏳ Paquete</h2>
+            <div id="detalle-estimado-contenido"></div>
+            <button class="btn btn-secondary" style="width:100%;margin-top:15px;" onclick="cerrarModalDetalleEstimado()">✕ Cerrar</button>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR FECHA DE ENVÍO -->
+    <div class="modal-cargar-pedidos" id="modalFechaEnvio" onclick="if(event.target===this) cerrarModalFechaEnvio()">
+        <div class="contenido">
+            <h2>📅 Fecha y Hora del Envío Pagado</h2>
+            <p style="color:#888;font-size:12px;margin-bottom:12px;">Desde este momento se empiezan a contar los días.</p>
+            <div class="campo">
+                <label>📅 Fecha</label>
+                <input type="date" id="envio-fecha-input">
+            </div>
+            <div class="campo">
+                <label>⏰ Hora</label>
+                <input type="time" id="envio-hora-input">
+            </div>
+            <div style="display:flex;gap:10px;margin-top:15px;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="cerrarModalFechaEnvio()">✕ Cancelar</button>
+                <button class="btn btn-verde" style="flex:1;" onclick="guardarFechaEnvio()">💾 Guardar</button>
+            </div>
+        </div>
+    </div>
+
     <div id="seccion-pedidos" class="seccion">
         <div class="card">
             <div class="pedido-header">
@@ -2562,6 +2617,7 @@ async function cargarEstadoDesdeNube() {
         if (!estado.cargarPedidos) estado.cargarPedidos = [];
         if (!estado.historialPedidos) estado.historialPedidos = [];
         if (!estado.drops) estado.drops = [];
+            if (!estado.estimados) estado.estimados = [];
         delete estado.carrito;
         crearDropsIniciales();
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(estado)); } catch (e) {}
@@ -2591,7 +2647,7 @@ async function borrarTodoLosDatos() {
     if (!confirm('Última confirmación: ¿de verdad quieres dejar la tienda completamente vacía?')) return;
     
     const estadoVacio = {
-        productos: [], ventas: [], clientes: [], pedidos: [], cargarPedidos: [], historialPedidos: [], drops: [],
+        productos: [], ventas: [], clientes: [], pedidos: [], cargarPedidos: [], historialPedidos: [], drops: [], estimados: [],
         contadorCliente: 0, config: { nombre: 'Mi Tienda', logo: null, moneda: 'Bs', pantallaCompleta: false }
     };
     
@@ -2618,6 +2674,7 @@ let estado = {
     cargarPedidos: [],
     historialPedidos: [],
     drops: [],
+    estimados: [],
     contadorCliente: 0,
     config: { nombre: 'Mi Tienda', logo: null, moneda: 'Bs' }
 };
@@ -2670,6 +2727,7 @@ function categoriaTieneTallas(categoria) { return categoria === 'Zapatillas' || 
 // =============================================
 function crearDropsIniciales() {
     if (!estado.drops) estado.drops = [];
+            if (!estado.estimados) estado.estimados = [];
     if (estado.drops.length === 0) {
         for (let i = 1; i <= 5; i++) {
             estado.drops.push({ id: generarId(), numero: i, nombre: 'Drop ' + i, capital: 0, productos: [], prestamos: [] });
@@ -3063,6 +3121,249 @@ function cerrarModalAgregarProductoDrop() {
 }
 
 // =============================================
+// ESTIMADO DE LLEGADA (paquetes por drop)
+// =============================================
+let estimadoEditandoId = null;
+
+function calcularDiasDesde(timestamp) {
+    if (!timestamp) return 0;
+    const dias = Math.floor((Date.now() - timestamp) / (1000 * 60 * 60 * 24));
+    return dias < 0 ? 0 : dias;
+}
+
+function abrirModalAgregarEstimado() {
+    if (!estado.estimados) estado.estimados = [];
+    const yaAgregados = estado.estimados.map(e => e.dropId);
+    const container = document.getElementById('lista-drops-estimado');
+    
+    // El Drop 1 no se puede agregar: ya llegó y se vendió
+    const dropsDisponibles = estado.drops.filter(d => d.numero > 1 && !yaAgregados.includes(d.id));
+    
+    if (dropsDisponibles.length === 0) {
+        container.innerHTML = `<div class="empty"><p>No hay drops disponibles para armar paquete (el Drop 1 no cuenta y los demás ya están agregados)</p></div>`;
+    } else {
+        container.innerHTML = dropsDisponibles.map(d => `
+            <div class="eliminar-item" style="cursor:pointer;" onclick="crearEstimadoDesdeDrop('${d.id}')">
+                <div class="info"><span style="font-size:22px;">🎁</span><div>
+                    <div class="nombre">${d.nombre}</div>
+                    <div class="precio">${d.productos.length} producto(s) en el paquete</div>
+                </div></div>
+                <button class="btn btn-azul" style="padding:6px 14px;font-size:12px;">➕ Armar</button>
+            </div>
+        `).join('');
+    }
+    document.getElementById('modalAgregarEstimado').classList.add('active');
+}
+
+function cerrarModalAgregarEstimado() {
+    document.getElementById('modalAgregarEstimado').classList.remove('active');
+}
+
+function crearEstimadoDesdeDrop(dropId) {
+    const drop = estado.drops.find(d => d.id === dropId);
+    if (!drop) return;
+    if (!estado.estimados) estado.estimados = [];
+    if (estado.estimados.some(e => e.dropId === dropId)) { notify('⚠️ Ese drop ya tiene un paquete', 'error'); return; }
+    
+    estado.estimados.push({
+        id: generarId(),
+        dropId: dropId,
+        dropNombre: drop.nombre,
+        envioPagado: false,
+        fechaEnvio: null,
+        timestampEnvio: null,
+        llego: false,
+        fechaLlegada: null,
+        timestampLlegada: null,
+        diasTardo: null
+    });
+    guardarEstado();
+    cerrarModalAgregarEstimado();
+    renderizarEstimados();
+    actualizarContadoresSidebar();
+    notify(`✅ Paquete de "${drop.nombre}" armado`, 'success');
+}
+
+function renderizarEstimados() {
+    const container = document.getElementById('lista-estimado');
+    if (!container) return;
+    if (!estado.estimados) estado.estimados = [];
+    
+    if (estado.estimados.length === 0) {
+        container.innerHTML = `<div class="empty"><span class="icon">⏳</span><p>No hay paquetes en camino. Toca "➕ Agregar" para armar uno.</p></div>`;
+        return;
+    }
+    
+    container.innerHTML = estado.estimados.map(e => {
+        const drop = estado.drops.find(d => d.id === e.dropId);
+        const cantidad = drop ? drop.productos.length : 0;
+        
+        let estadoHtml, accionHtml;
+        if (e.llego) {
+            estadoHtml = `<span class="badge-venta">✅ LLEGÓ en ${e.diasTardo} día(s)</span>`;
+            accionHtml = '';
+        } else if (e.envioPagado) {
+            const dias = calcularDiasDesde(e.timestampEnvio);
+            estadoHtml = `<span class="badge-estado badge-cargado">🚚 En camino · ${dias} día(s)</span>`;
+            accionHtml = `<button class="btn btn-verde" style="padding:6px 14px;font-size:12px;" onclick="event.stopPropagation(); marcarPaqueteLlego('${e.id}')">📬 Ya llegó</button>`;
+        } else {
+            estadoHtml = `<span class="badge-estado" style="background:#333;color:#ccc;">⏸️ Envío sin pagar</span>`;
+            accionHtml = `<button class="btn btn-azul" style="padding:6px 14px;font-size:12px;" onclick="event.stopPropagation(); marcarEnvioPagado('${e.id}')">💳 Envío pagado</button>`;
+        }
+        
+        return `
+            <div class="eliminar-item" style="cursor:pointer;" onclick="abrirDetalleEstimado('${e.id}')">
+                <div class="info"><span style="font-size:22px;">${e.llego ? '📬' : '⏳'}</span><div>
+                    <div class="nombre">${e.dropNombre}</div>
+                    <div class="precio">${cantidad} producto(s) · ${e.fechaEnvio ? '📅 Envío: ' + e.fechaEnvio : 'Sin fecha de envío'}</div>
+                    <div style="margin-top:4px;">${estadoHtml}</div>
+                </div></div>
+                ${accionHtml}
+            </div>
+        `;
+    }).join('');
+}
+
+function marcarEnvioPagado(id) {
+    const est = estado.estimados.find(e => e.id === id);
+    if (!est) return;
+    estimadoEditandoId = id;
+    const ahora = new Date();
+    const anio = ahora.getFullYear();
+    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+    const dia = String(ahora.getDate()).padStart(2, '0');
+    document.getElementById('envio-fecha-input').value = `${anio}-${mes}-${dia}`;
+    document.getElementById('envio-hora-input').value = `${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}`;
+    document.getElementById('modalFechaEnvio').classList.add('active');
+}
+
+function cerrarModalFechaEnvio() {
+    document.getElementById('modalFechaEnvio').classList.remove('active');
+    estimadoEditandoId = null;
+}
+
+function guardarFechaEnvio() {
+    if (!estimadoEditandoId) return;
+    const est = estado.estimados.find(e => e.id === estimadoEditandoId);
+    if (!est) return;
+    const fechaStr = document.getElementById('envio-fecha-input').value;
+    const horaStr = document.getElementById('envio-hora-input').value || '00:00';
+    if (!fechaStr) { notify('❌ Selecciona una fecha', 'error'); return; }
+    
+    const [anio, mes, dia] = fechaStr.split('-').map(Number);
+    const [hh, mm] = horaStr.split(':').map(Number);
+    const fecha = new Date(anio, mes - 1, dia, hh, mm, 0);
+    
+    est.envioPagado = true;
+    est.timestampEnvio = fecha.getTime();
+    est.fechaEnvio = fecha.toLocaleDateString() + ' ' + fecha.toLocaleTimeString();
+    
+    guardarEstado();
+    cerrarModalFechaEnvio();
+    renderizarEstimados();
+    notify('✅ Envío pagado registrado — se empiezan a contar los días', 'success');
+}
+
+function marcarPaqueteLlego(id) {
+    const est = estado.estimados.find(e => e.id === id);
+    if (!est) return;
+    if (!est.envioPagado) { notify('❌ Primero marca el envío como pagado', 'error'); return; }
+    if (!confirm(`¿Marcar el paquete de "${est.dropNombre}" como llegado?`)) return;
+    
+    const ahora = new Date();
+    est.llego = true;
+    est.timestampLlegada = ahora.getTime();
+    est.fechaLlegada = ahora.toLocaleDateString() + ' ' + ahora.toLocaleTimeString();
+    est.diasTardo = calcularDiasDesde(est.timestampEnvio);
+    
+    guardarEstado();
+    renderizarEstimados();
+    notify(`📬 Paquete llegó — tardó ${est.diasTardo} día(s)`, 'success');
+}
+
+function abrirDetalleEstimado(id) {
+    const est = estado.estimados.find(e => e.id === id);
+    if (!est) return;
+    const drop = estado.drops.find(d => d.id === est.dropId);
+    
+    document.getElementById('detalle-estimado-titulo').textContent = '⏳ ' + est.dropNombre;
+    
+    const diasActuales = est.llego ? est.diasTardo : (est.envioPagado ? calcularDiasDesde(est.timestampEnvio) : 0);
+    
+    let productosHtml = '';
+    if (drop && drop.productos.length > 0) {
+        productosHtml = drop.productos.map(ref => {
+            const fuente = ref.tipo === 'pedido' ? estado.pedidos : estado.productos;
+            const prod = fuente.find(p => p.id === ref.ref) || estado.productos.find(p => p.id === ref.ref);
+            if (!prod) return '';
+            const img = prod.portada ? `<img src="${prod.portada}" style="width:40px;height:40px;object-fit:contain;border-radius:6px;">` : '<span style="font-size:20px;">📦</span>';
+            return `<div class="eliminar-item"><div class="info">${img}<div><div class="nombre">${prod.nombre}</div><div class="precio">${formatMoney(prod.precio)}</div></div></div></div>`;
+        }).join('');
+    } else {
+        productosHtml = '<div class="empty" style="padding:15px;"><p>Este drop no tiene productos cargados</p></div>';
+    }
+    
+    document.getElementById('detalle-estimado-contenido').innerHTML = `
+        <div class="info-venta" style="margin-bottom:15px;">
+            <div class="item"><span class="label">📌 Estado</span><span class="valor">${est.llego ? '✅ Llegó' : (est.envioPagado ? '🚚 En camino' : '⏸️ Envío sin pagar')}</span></div>
+            <div class="item"><span class="label">💳 Envío pagado</span><span class="valor">${est.fechaEnvio || 'No registrado'}</span></div>
+            ${est.llego ? `<div class="item"><span class="label">📬 Llegó el</span><span class="valor">${est.fechaLlegada}</span></div>` : ''}
+            <div class="item"><span class="label">⏱️ Días ${est.llego ? 'que tardó' : 'esperando'}</span><span class="valor" style="color:#ffaa00;font-weight:bold;">${diasActuales} día(s)</span></div>
+        </div>
+        <div style="font-weight:bold;margin-bottom:8px;color:#ff8800;">📦 Contenido del paquete</div>
+        ${productosHtml}
+        <div style="display:flex;gap:10px;margin-top:15px;flex-wrap:wrap;">
+            <button class="btn btn-secondary" style="flex:1;" onclick="cerrarModalDetalleEstimado(); marcarEnvioPagado('${est.id}')">✏️ Editar fecha de envío</button>
+            <button class="btn btn-danger" style="flex:1;" onclick="eliminarEstimado('${est.id}')">🗑️ Quitar paquete</button>
+        </div>
+    `;
+    document.getElementById('modalDetalleEstimado').classList.add('active');
+}
+
+function cerrarModalDetalleEstimado() {
+    document.getElementById('modalDetalleEstimado').classList.remove('active');
+}
+
+function eliminarEstimado(id) {
+    const est = estado.estimados.find(e => e.id === id);
+    if (!est) return;
+    if (!confirm(`¿Quitar el paquete de "${est.dropNombre}" del seguimiento? Esto no toca el inventario.`)) return;
+    estado.estimados = estado.estimados.filter(e => e.id !== id);
+    guardarEstado();
+    cerrarModalDetalleEstimado();
+    renderizarEstimados();
+    actualizarContadoresSidebar();
+    notify('🗑️ Paquete quitado del seguimiento', 'success');
+}
+
+function sembrarEstimadoDrop2() {
+    if (!estado.estimados) estado.estimados = [];
+    if (estado.config && estado.config.estimadoDrop2Sembrado) return;
+    const drop2 = estado.drops.find(d => d.numero === 2);
+    if (!drop2) return;
+    if (estado.estimados.some(e => e.dropId === drop2.id)) return;
+    
+    const hoy = new Date();
+    const fechaEnvio = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 21, 45, 0);
+    
+    estado.estimados.push({
+        id: generarId(),
+        dropId: drop2.id,
+        dropNombre: drop2.nombre,
+        envioPagado: true,
+        fechaEnvio: fechaEnvio.toLocaleDateString() + ' ' + fechaEnvio.toLocaleTimeString(),
+        timestampEnvio: fechaEnvio.getTime(),
+        llego: false,
+        fechaLlegada: null,
+        timestampLlegada: null,
+        diasTardo: null
+    });
+    if (!estado.config) estado.config = {};
+    estado.config.estimadoDrop2Sembrado = true;
+    guardarEstado();
+}
+
+// =============================================
 // EDITAR PRODUCTO (⚙️)
 // =============================================
 let editarProductoId = null;
@@ -3278,6 +3579,7 @@ function cargarEstado() {
             if (!estado.cargarPedidos) estado.cargarPedidos = [];
             if (!estado.historialPedidos) estado.historialPedidos = [];
             if (!estado.drops) estado.drops = [];
+            if (!estado.estimados) estado.estimados = [];
             delete estado.carrito;
             crearDropsIniciales();
             return true; 
@@ -3304,6 +3606,7 @@ function navegarA(seccion) {
         productos: '📦 Inventario', 
         agregar: '➕ Agregar Productos',
         ventas: '💰 Ventas', 
+        estimado: '⏳ Estimado de Llegada',
         pedidos: '📦 Productos a Pedido',
         cargar: '📋 Cargar Pedidos',
         historial: '📜 Historial', 
@@ -3324,6 +3627,7 @@ function navegarA(seccion) {
     if (seccion === 'historial') renderizarHistorial();
     if (seccion === 'productos') renderizarProductos();
     if (seccion === 'ventas') renderizarVentas();
+    if (seccion === 'estimado') renderizarEstimados();
 }
 
 // =============================================
@@ -5879,6 +6183,7 @@ function procesarImportacion(input) {
                 if (!estado.cargarPedidos) estado.cargarPedidos = [];
                 if (!estado.historialPedidos) estado.historialPedidos = [];
                 if (!estado.drops) estado.drops = [];
+            if (!estado.estimados) estado.estimados = [];
                 delete estado.carrito;
                 crearDropsIniciales();
                 guardarEstado();
@@ -5939,6 +6244,7 @@ function actualizarContadoresSidebar() {
     document.getElementById('sidebar-clientes-count').textContent = estado.clientes.length;
     document.getElementById('sidebar-pedidos-count').textContent = estado.pedidos.length;
     document.getElementById('sidebar-cargar-count').textContent = (estado.cargarPedidos || []).length;
+    document.getElementById('sidebar-estimado-count').textContent = (estado.estimados || []).filter(e => !e.llego).length;
 }
 
 // =============================================
@@ -5976,6 +6282,8 @@ async function inicializar() {
     renderizarPedidos();
     renderizarCargarPedidos();
     renderizarHistorial();
+    sembrarEstimadoDrop2();
+    renderizarEstimados();
     actualizarContadoresSidebar();
     setTimeout(actualizarDashboard, 200);
     verificarBannerPantallaCompleta();
