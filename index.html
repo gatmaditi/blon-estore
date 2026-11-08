@@ -2372,38 +2372,43 @@
     </div>
 
     <div id="seccion-cotizacion" class="seccion">
-        <div class="card">
-            <h2>💲 Cotización</h2>
-            <p style="color:#666; font-size:11px; margin:0 0 15px;">ℹ️ Calculadora para saber cuánto sale en Bolivianos. Las tasas se pueden cambiar y se guardan.</p>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <div class="campo" style="flex:1;min-width:140px;">
-                    <label>🇧🇴 Bs por $</label>
-                    <input type="number" id="cot-tasa-bs" step="0.01" min="0">
-                </div>
-                <div class="campo" style="flex:1;min-width:140px;">
-                    <label>🇨🇳 $ por ¥ (Goofish)</label>
-                    <input type="number" id="cot-tasa-yuan" step="0.0001" min="0">
-                </div>
-            </div>
-            <button class="btn btn-verde" style="width:100%;margin-bottom:20px;" onclick="guardarTasasCotizacion()">💾 Guardar tasas</button>
+        <style>
+            .cot-tabs { display:flex; gap:10px; justify-content:center; margin:0 auto 20px; max-width:420px; }
+            .cot-tab { flex:1; padding:12px; border-radius:10px; border:1px solid #333; background:#111; color:#ccc; font-weight:bold; cursor:pointer; font-size:15px; }
+            .cot-tab.active { border-color:#ff6b00; color:#ff8800; background:#ff6b0020; }
+            .cot-card { max-width:420px; margin:0 auto; background:#0d0d0f; border:1px solid #333; border-radius:14px; padding:24px 18px; text-align:center; }
+            .cot-titulo { font-weight:bold; color:#ff8800; font-size:20px; margin-bottom:16px; }
+            .cot-card input[type=number] { width:100%; text-align:center; font-size:18px; }
+            .cot-resultado { font-size:38px; font-weight:bold; color:#ffaa00; margin:18px 0 6px; min-height:50px; }
+            .cot-equivale { font-size:14px; color:#aaa; margin-top:10px; }
+            .cot-link { margin-top:18px; background:none; border:none; color:#666; font-size:12px; cursor:pointer; }
+            .cot-tasas { display:none; margin-top:10px; font-size:13px; color:#888; }
+            .cot-tasas input { width:90px; text-align:center; padding:6px; margin:0 6px; }
+        </style>
+        <div class="cot-tabs">
+            <button class="cot-tab active" id="cot-tab-kakobuy" onclick="mostrarCotizacion('kakobuy')">🛒 Kakobuy</button>
+            <button class="cot-tab" id="cot-tab-goofish" onclick="mostrarCotizacion('goofish')">🛍️ Goofish</button>
+        </div>
 
-            <div style="background:#0d0d0f;border:1px solid #333;border-radius:10px;padding:15px;margin-bottom:15px;">
-                <div style="font-weight:bold;color:#ff8800;margin-bottom:8px;">🛒 Kakobuy (en $)</div>
-                <div class="campo">
-                    <label>💵 Monto en $</label>
-                    <input type="number" id="kakobuy-monto" step="0.01" placeholder="Escribí el monto en $" oninput="calcularKakobuy()">
-                </div>
-                <div id="kakobuy-resultado" style="font-size:20px;font-weight:bold;margin-top:8px;"></div>
+        <div id="cot-kakobuy" class="cot-card">
+            <div class="cot-titulo">🛒 Kakobuy</div>
+            <input type="number" id="kakobuy-monto" step="0.01" placeholder="Monto en $" oninput="calcularKakobuy()">
+            <div id="kakobuy-resultado" class="cot-resultado"></div>
+            <button class="cot-link" onclick="toggleTasas('tasas-kakobuy')">⚙️ Tasas</button>
+            <div id="tasas-kakobuy" class="cot-tasas">
+                Tasa: <input type="number" id="cot-tasa-bs-k" step="0.01" min="0" onchange="cambiarTasa('bs', this.value)"> Bs por $
             </div>
+        </div>
 
-            <div style="background:#0d0d0f;border:1px solid #333;border-radius:10px;padding:15px;">
-                <div style="font-weight:bold;color:#ff8800;margin-bottom:8px;">🛍️ Goofish (en ¥)</div>
-                <div class="campo">
-                    <label>¥ Monto en yuanes</label>
-                    <input type="number" id="goofish-yuan" step="0.01" placeholder="Escribí el monto en ¥" oninput="calcularGoofish()">
-                </div>
-                <div style="font-size:13px;color:#aaa;margin-top:6px;">Equivale a: <span id="goofish-usd">$ 0.00</span></div>
-                <div id="goofish-bs" style="font-size:20px;font-weight:bold;margin-top:6px;"></div>
+        <div id="cot-goofish" class="cot-card" style="display:none;">
+            <div class="cot-titulo">🛍️ Goofish</div>
+            <input type="number" id="goofish-yuan" step="0.01" placeholder="Monto en ¥" oninput="calcularGoofish()">
+            <div class="cot-equivale">Equivale a: <span id="goofish-usd">$ 0.00</span></div>
+            <div id="goofish-bs" class="cot-resultado"></div>
+            <button class="cot-link" onclick="toggleTasas('tasas-goofish')">⚙️ Tasas</button>
+            <div id="tasas-goofish" class="cot-tasas">
+                Tasa: <input type="number" id="cot-tasa-yuan" step="0.0001" min="0" onchange="cambiarTasa('yuan', this.value)"> $ por ¥
+                <br><br>Tasa: <input type="number" id="cot-tasa-bs-g" step="0.01" min="0" onchange="cambiarTasa('bs', this.value)"> Bs por $
             </div>
         </div>
     </div>
@@ -3732,23 +3737,33 @@ function formatearBs(n) {
 
 function renderizarCotizacion() {
     const cfg = getCotizacionConfig();
-    document.getElementById('cot-tasa-bs').value = cfg.tasaBs;
+    document.getElementById('cot-tasa-bs-k').value = cfg.tasaBs;
+    document.getElementById('cot-tasa-bs-g').value = cfg.tasaBs;
     document.getElementById('cot-tasa-yuan').value = cfg.tasaYuan;
     calcularKakobuy();
     calcularGoofish();
 }
 
-function guardarTasasCotizacion() {
+function mostrarCotizacion(tipo) {
+    document.getElementById('cot-kakobuy').style.display = tipo === 'kakobuy' ? '' : 'none';
+    document.getElementById('cot-goofish').style.display = tipo === 'goofish' ? '' : 'none';
+    document.getElementById('cot-tab-kakobuy').classList.toggle('active', tipo === 'kakobuy');
+    document.getElementById('cot-tab-goofish').classList.toggle('active', tipo === 'goofish');
+}
+
+function toggleTasas(id) {
+    const el = document.getElementById(id);
+    el.style.display = el.style.display === 'block' ? 'none' : 'block';
+}
+
+function cambiarTasa(tipo, valor) {
     const cfg = getCotizacionConfig();
-    const bs = parseFloat(document.getElementById('cot-tasa-bs').value);
-    const yuan = parseFloat(document.getElementById('cot-tasa-yuan').value);
-    if (!(bs > 0) || !(yuan > 0)) { notify('❌ Las tasas tienen que ser números mayores a 0', 'error'); return; }
-    cfg.tasaBs = bs;
-    cfg.tasaYuan = yuan;
+    const n = parseFloat(valor);
+    if (!(n > 0)) { notify('❌ La tasa tiene que ser un número mayor a 0', 'error'); renderizarCotizacion(); return; }
+    if (tipo === 'bs') cfg.tasaBs = n; else cfg.tasaYuan = n;
     guardarEstado();
-    calcularKakobuy();
-    calcularGoofish();
-    notify('💾 Tasas guardadas', 'success');
+    renderizarCotizacion();
+    notify('💾 Tasa guardada', 'success');
 }
 
 function calcularKakobuy() {
@@ -5770,17 +5785,34 @@ function renderizarVentas() {
         return;
     }
 
-    // Agrupar por compra: todo lo que se compró junto (mismo transaccionId) va en UNA sola tarjeta
+    // Agrupar por compra. Ventas nuevas: mismo transaccionId.
+    // Ventas viejas (sin transaccionId): se juntan si son del mismo cliente, mismo día
+    // y con menos de 5 minutos de diferencia con la última venta del grupo.
     const grupos = {};
     const orden = [];
-    ventasFiltradas.slice().reverse().forEach(v => {
-        const clave = v.transaccionId || ('venta-' + estado.ventas.indexOf(v));
+    const cronologicas = ventasFiltradas.slice().sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    cronologicas.forEach(v => {
+        let clave = null;
+        if (v.transaccionId) {
+            clave = 'T' + v.transaccionId;
+        } else {
+            for (let k = orden.length - 1; k >= 0; k--) {
+                const g = grupos[orden[k]];
+                const ultima = g[g.length - 1];
+                if (!ultima.transaccionId && ultima.cliente === v.cliente && ultima.fecha === v.fecha &&
+                    Math.abs((v.timestamp || 0) - (ultima.timestamp || 0)) <= 5 * 60 * 1000) {
+                    clave = orden[k];
+                    break;
+                }
+            }
+            if (!clave) clave = 'L' + estado.ventas.indexOf(v);
+        }
         if (!grupos[clave]) { grupos[clave] = []; orden.push(clave); }
         grupos[clave].push(v);
     });
 
     let html = '';
-    orden.forEach(clave => {
+    orden.slice().reverse().forEach(clave => {
         const items = grupos[clave];
         const principal = items[0];
         const index = estado.ventas.indexOf(principal);
