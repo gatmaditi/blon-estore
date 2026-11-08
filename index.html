@@ -1709,6 +1709,9 @@
         <span class="icon">⏳</span> Estimado
         <span class="badge" id="sidebar-estimado-count">0</span>
     </div>
+    <div class="sidebar-item" onclick="navegarA('cotizacion')">
+        <span class="icon">💲</span> Cotización
+    </div>
     <div class="sidebar-item" onclick="navegarA('pedidos')">
         <span class="icon">📦</span> Productos a Pedido
         <span class="badge" id="sidebar-pedidos-count">0</span>
@@ -2365,6 +2368,70 @@
             </div>
             <p style="color:#666; font-size:11px; margin:0 0 15px;">ℹ️ Acá solo se cuentan los días que tarda en llegar cada paquete. No toca el inventario ni el stock de nada.</p>
             <div id="lista-estimado"></div>
+        </div>
+    </div>
+
+    <div id="seccion-cotizacion" class="seccion">
+        <div class="card">
+            <h2>💲 Cotización</h2>
+            <p style="color:#666; font-size:11px; margin:0 0 15px;">ℹ️ Calculadora para saber cuánto sale en Bolivianos. Las tasas se pueden cambiar y se guardan.</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <div class="campo" style="flex:1;min-width:140px;">
+                    <label>🇧🇴 Bs por $</label>
+                    <input type="number" id="cot-tasa-bs" step="0.01" min="0">
+                </div>
+                <div class="campo" style="flex:1;min-width:140px;">
+                    <label>🇨🇳 $ por ¥ (Goofish)</label>
+                    <input type="number" id="cot-tasa-yuan" step="0.0001" min="0">
+                </div>
+            </div>
+            <button class="btn btn-verde" style="width:100%;margin-bottom:20px;" onclick="guardarTasasCotizacion()">💾 Guardar tasas</button>
+
+            <div style="background:#0d0d0f;border:1px solid #333;border-radius:10px;padding:15px;margin-bottom:15px;">
+                <div style="font-weight:bold;color:#ff8800;margin-bottom:8px;">🛒 Kakobuy (en $)</div>
+                <div class="campo">
+                    <label>💵 Monto en $</label>
+                    <input type="number" id="kakobuy-monto" step="0.01" placeholder="Escribí el monto en $" oninput="calcularKakobuy()">
+                </div>
+                <div id="kakobuy-resultado" style="font-size:20px;font-weight:bold;margin-top:8px;"></div>
+            </div>
+
+            <div style="background:#0d0d0f;border:1px solid #333;border-radius:10px;padding:15px;">
+                <div style="font-weight:bold;color:#ff8800;margin-bottom:8px;">🛍️ Goofish (en ¥)</div>
+                <div class="campo">
+                    <label>¥ Monto en yuanes</label>
+                    <input type="number" id="goofish-yuan" step="0.01" placeholder="Escribí el monto en ¥" oninput="calcularGoofish()">
+                </div>
+                <div style="font-size:13px;color:#aaa;margin-top:6px;">Equivale a: <span id="goofish-usd">$ 0.00</span></div>
+                <div id="goofish-bs" style="font-size:20px;font-weight:bold;margin-top:6px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-cargar-pedidos" id="modalRecogido" onclick="if(event.target===this) cerrarModalRecogido()">
+        <div class="contenido">
+            <h2>✅ Recogido en Bolivia</h2>
+            <p style="color:#888;font-size:12px;margin-bottom:12px;">Anotá los datos de cuando lo recogiste.</p>
+            <div class="campo">
+                <label>📅 Fecha</label>
+                <input type="date" id="recogido-fecha-input">
+            </div>
+            <div class="campo">
+                <label>⏰ Hora</label>
+                <input type="time" id="recogido-hora-input">
+            </div>
+            <div class="campo">
+                <label>⚖️ Peso (kg)</label>
+                <input type="number" id="recogido-peso-input" step="0.01" min="0" placeholder="Ej: 2.5">
+            </div>
+            <div class="campo">
+                <label>🇧🇴 Bs que cobró la importadora</label>
+                <input type="number" id="recogido-bs-input" step="0.01" min="0" placeholder="Ej: 150">
+            </div>
+            <div style="display:flex;gap:10px;margin-top:15px;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="cerrarModalRecogido()">✕ Cancelar</button>
+                <button class="btn btn-verde" style="flex:1;" onclick="guardarRecogido()">💾 Guardar</button>
+            </div>
         </div>
     </div>
 
@@ -3188,32 +3255,40 @@ function renderizarEstimados() {
     const container = document.getElementById('lista-estimado');
     if (!container) return;
     if (!estado.estimados) estado.estimados = [];
-    
+
     if (estado.estimados.length === 0) {
         container.innerHTML = `<div class="empty"><span class="icon">⏳</span><p>No hay paquetes en camino. Toca "➕ Agregar" para armar uno.</p></div>`;
         return;
     }
-    
+
     container.innerHTML = estado.estimados.map(e => {
         const drop = estado.drops.find(d => d.id === e.dropId);
         const cantidad = drop ? drop.productos.length : 0;
-        
-        let estadoHtml, accionHtml;
-        if (e.llego) {
-            estadoHtml = `<span class="badge-venta">✅ LLEGÓ en ${e.diasTardo} día(s)</span>`;
+
+        let icono, estadoHtml, accionHtml;
+        if (e.recogido) {
+            icono = '✅';
+            estadoHtml = `<span class="badge-venta">✅ Recogido en Bolivia · ${e.diasTotal || 0} día(s) en total</span>`;
             accionHtml = '';
+        } else if (e.llego) {
+            icono = '🇨🇱';
+            const dias = calcularDiasDesde(e.timestampLlegada);
+            estadoHtml = `<span class="badge-estado badge-cargado">🇨🇱 En Chile · ${dias} día(s) desde Correos</span>`;
+            accionHtml = `<button class="btn btn-verde" style="padding:6px 14px;font-size:12px;" onclick="event.stopPropagation(); abrirModalRecogido('${e.id}')">✅ Recogido en Bolivia</button>`;
         } else if (e.envioPagado) {
+            icono = '⏳';
             const dias = calcularDiasDesde(e.timestampEnvio);
             estadoHtml = `<span class="badge-estado badge-cargado">🚚 En camino · ${dias} día(s)</span>`;
-            accionHtml = `<button class="btn btn-verde" style="padding:6px 14px;font-size:12px;" onclick="event.stopPropagation(); marcarPaqueteLlego('${e.id}')">📬 Ya llegó</button>`;
+            accionHtml = `<button class="btn btn-verde" style="padding:6px 14px;font-size:12px;" onclick="event.stopPropagation(); marcarPaqueteLlego('${e.id}')">📬 Llegó a Correos Chile</button>`;
         } else {
+            icono = '⏳';
             estadoHtml = `<span class="badge-estado" style="background:#333;color:#ccc;">⏸️ Envío sin pagar</span>`;
             accionHtml = `<button class="btn btn-azul" style="padding:6px 14px;font-size:12px;" onclick="event.stopPropagation(); marcarEnvioPagado('${e.id}')">💳 Envío pagado</button>`;
         }
-        
+
         return `
             <div class="eliminar-item" style="cursor:pointer;" onclick="abrirDetalleEstimado('${e.id}')">
-                <div class="info"><span style="font-size:22px;">${e.llego ? '📬' : '⏳'}</span><div>
+                <div class="info"><span style="font-size:22px;">${icono}</span><div>
                     <div class="nombre">${e.dropNombre}</div>
                     <div class="precio">${cantidad} producto(s) · ${e.fechaEnvio ? '📅 Envío: ' + e.fechaEnvio : 'Sin fecha de envío'}</div>
                     <div style="margin-top:4px;">${estadoHtml}</div>
@@ -3268,28 +3343,96 @@ function marcarPaqueteLlego(id) {
     const est = estado.estimados.find(e => e.id === id);
     if (!est) return;
     if (!est.envioPagado) { notify('❌ Primero marca el envío como pagado', 'error'); return; }
-    if (!confirm(`¿Marcar el paquete de "${est.dropNombre}" como llegado?`)) return;
-    
+    if (!confirm(`¿Confirmar que el paquete de "${est.dropNombre}" llegó al centro de procesamiento de Correos Chile?`)) return;
+
     const ahora = new Date();
     est.llego = true;
     est.timestampLlegada = ahora.getTime();
     est.fechaLlegada = ahora.toLocaleDateString() + ' ' + ahora.toLocaleTimeString();
-    est.diasTardo = calcularDiasDesde(est.timestampEnvio);
-    
+    est.diasTardo = calcularDiasEntre(est.timestampEnvio, est.timestampLlegada);
+
     guardarEstado();
     renderizarEstimados();
-    notify(`📬 Paquete llegó — tardó ${est.diasTardo} día(s)`, 'success');
+    actualizarContadoresSidebar();
+    notify(`📬 Llegó a Correos Chile — tardó ${est.diasTardo} día(s) desde el envío`, 'success');
+}
+
+function calcularDiasEntre(desde, hasta) {
+    if (!desde || !hasta) return 0;
+    const dias = Math.floor((hasta - desde) / (1000 * 60 * 60 * 24));
+    return dias < 0 ? 0 : dias;
+}
+
+let recogidoEditandoId = null;
+
+function abrirModalRecogido(id) {
+    const est = estado.estimados.find(e => e.id === id);
+    if (!est) return;
+    if (!est.llego) { notify('❌ Primero marca que llegó a Correos Chile', 'error'); return; }
+    recogidoEditandoId = id;
+    const ahora = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    if (est.recogido && est.timestampRecogido) {
+        const f = new Date(est.timestampRecogido);
+        document.getElementById('recogido-fecha-input').value = `${f.getFullYear()}-${pad(f.getMonth() + 1)}-${pad(f.getDate())}`;
+        document.getElementById('recogido-hora-input').value = `${pad(f.getHours())}:${pad(f.getMinutes())}`;
+    } else {
+        document.getElementById('recogido-fecha-input').value = `${ahora.getFullYear()}-${pad(ahora.getMonth() + 1)}-${pad(ahora.getDate())}`;
+        document.getElementById('recogido-hora-input').value = `${pad(ahora.getHours())}:${pad(ahora.getMinutes())}`;
+    }
+    document.getElementById('recogido-peso-input').value = est.peso != null ? est.peso : '';
+    document.getElementById('recogido-bs-input').value = est.montoBs != null ? est.montoBs : '';
+    document.getElementById('modalRecogido').classList.add('active');
+}
+
+function cerrarModalRecogido() {
+    document.getElementById('modalRecogido').classList.remove('active');
+    recogidoEditandoId = null;
+}
+
+function guardarRecogido() {
+    if (!recogidoEditandoId) return;
+    const est = estado.estimados.find(e => e.id === recogidoEditandoId);
+    if (!est) return;
+    const fechaStr = document.getElementById('recogido-fecha-input').value;
+    const horaStr = document.getElementById('recogido-hora-input').value || '00:00';
+    const peso = parseFloat(document.getElementById('recogido-peso-input').value);
+    const bs = parseFloat(document.getElementById('recogido-bs-input').value);
+    if (!fechaStr) { notify('❌ Selecciona la fecha de recogido', 'error'); return; }
+    if (!(peso > 0)) { notify('❌ Ingresá el peso en kg', 'error'); return; }
+    if (isNaN(bs) || bs < 0) { notify('❌ Ingresá los Bs que cobró la importadora', 'error'); return; }
+
+    const [anio, mes, dia] = fechaStr.split('-').map(Number);
+    const [hh, mm] = horaStr.split(':').map(Number);
+    const fecha = new Date(anio, mes - 1, dia, hh, mm, 0);
+
+    est.recogido = true;
+    est.timestampRecogido = fecha.getTime();
+    est.fechaRecogido = fecha.toLocaleDateString() + ' ' + fecha.toLocaleTimeString();
+    est.peso = peso;
+    est.montoBs = bs;
+    est.diasChileBolivia = calcularDiasEntre(est.timestampLlegada, est.timestampRecogido);
+    est.diasTotal = calcularDiasEntre(est.timestampEnvio || est.timestampLlegada, est.timestampRecogido);
+
+    guardarEstado();
+    cerrarModalRecogido();
+    renderizarEstimados();
+    actualizarContadoresSidebar();
+    notify('✅ Recogido en Bolivia registrado', 'success');
 }
 
 function abrirDetalleEstimado(id) {
     const est = estado.estimados.find(e => e.id === id);
     if (!est) return;
     const drop = estado.drops.find(d => d.id === est.dropId);
-    
+
     document.getElementById('detalle-estimado-titulo').textContent = '⏳ ' + est.dropNombre;
-    
-    const diasActuales = est.llego ? est.diasTardo : (est.envioPagado ? calcularDiasDesde(est.timestampEnvio) : 0);
-    
+
+    let diasActuales = 0, labelDias = 'esperando';
+    if (est.recogido) { diasActuales = est.diasTotal || 0; labelDias = 'en total (envío → Bolivia)'; }
+    else if (est.llego) { diasActuales = calcularDiasDesde(est.timestampLlegada); labelDias = 'desde Correos Chile'; }
+    else if (est.envioPagado) { diasActuales = calcularDiasDesde(est.timestampEnvio); }
+
     let productosHtml = '';
     if (drop && drop.productos.length > 0) {
         productosHtml = drop.productos.map(ref => {
@@ -3302,18 +3445,29 @@ function abrirDetalleEstimado(id) {
     } else {
         productosHtml = '<div class="empty" style="padding:15px;"><p>Este drop no tiene productos cargados</p></div>';
     }
-    
+
+    const estadoTxt = est.recogido ? '✅ Recogido en Bolivia' : (est.llego ? '🇨🇱 En Chile (camino a Bolivia)' : (est.envioPagado ? '🚚 En camino' : '⏸️ Envío sin pagar'));
+    const filasLlegada = est.llego ? `<div class="item"><span class="label">📬 Llegó a Correos Chile</span><span class="valor">${est.fechaLlegada}</span></div>` : '';
+    const filasRecogido = est.recogido ? `
+            <div class="item"><span class="label">✅ Recogido el</span><span class="valor">${est.fechaRecogido}</span></div>
+            <div class="item"><span class="label">⚖️ Peso</span><span class="valor">${est.peso} kg</span></div>
+            <div class="item"><span class="label">🇧🇴 Bs cobrados por importadora</span><span class="valor">${formatMoney(est.montoBs)}</span></div>
+            <div class="item"><span class="label">🇨🇱 Días Correos Chile → Bolivia</span><span class="valor">${est.diasChileBolivia || 0} día(s)</span></div>` : '';
+    const btnRecogido = est.llego ? `<button class="btn btn-verde" style="flex:1;" onclick="cerrarModalDetalleEstimado(); abrirModalRecogido('${est.id}')">${est.recogido ? '✏️ Editar datos de recogido' : '✅ Recogido en Bolivia'}</button>` : '';
+
     document.getElementById('detalle-estimado-contenido').innerHTML = `
         <div class="info-venta" style="margin-bottom:15px;">
-            <div class="item"><span class="label">📌 Estado</span><span class="valor">${est.llego ? '✅ Llegó' : (est.envioPagado ? '🚚 En camino' : '⏸️ Envío sin pagar')}</span></div>
+            <div class="item"><span class="label">📌 Estado</span><span class="valor">${estadoTxt}</span></div>
             <div class="item"><span class="label">💳 Envío pagado</span><span class="valor">${est.fechaEnvio || 'No registrado'}</span></div>
-            ${est.llego ? `<div class="item"><span class="label">📬 Llegó el</span><span class="valor">${est.fechaLlegada}</span></div>` : ''}
-            <div class="item"><span class="label">⏱️ Días ${est.llego ? 'que tardó' : 'esperando'}</span><span class="valor" style="color:#ffaa00;font-weight:bold;">${diasActuales} día(s)</span></div>
+            ${filasLlegada}
+            ${filasRecogido}
+            <div class="item"><span class="label">⏱️ Días ${labelDias}</span><span class="valor" style="color:#ffaa00;font-weight:bold;">${diasActuales} día(s)</span></div>
         </div>
         <div style="font-weight:bold;margin-bottom:8px;color:#ff8800;">📦 Contenido del paquete</div>
         ${productosHtml}
         <div style="display:flex;gap:10px;margin-top:15px;flex-wrap:wrap;">
             <button class="btn btn-secondary" style="flex:1;" onclick="cerrarModalDetalleEstimado(); marcarEnvioPagado('${est.id}')">✏️ Editar fecha de envío</button>
+            ${btnRecogido}
             <button class="btn btn-danger" style="flex:1;" onclick="eliminarEstimado('${est.id}')">🗑️ Quitar paquete</button>
         </div>
     `;
@@ -3564,6 +3718,62 @@ function renderizarMiniaturas(containerId, array, quitarFuncion) {
 // =============================================
 // ALMACENAMIENTO
 // =============================================
+// =============================================
+// COTIZACIÓN (calculadora Kakobuy / Goofish)
+// =============================================
+function getCotizacionConfig() {
+    if (!estado.config.cotizacion) estado.config.cotizacion = { tasaBs: 12, tasaYuan: 0.1498 };
+    return estado.config.cotizacion;
+}
+
+function formatearBs(n) {
+    return 'Bs ' + n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function renderizarCotizacion() {
+    const cfg = getCotizacionConfig();
+    document.getElementById('cot-tasa-bs').value = cfg.tasaBs;
+    document.getElementById('cot-tasa-yuan').value = cfg.tasaYuan;
+    calcularKakobuy();
+    calcularGoofish();
+}
+
+function guardarTasasCotizacion() {
+    const cfg = getCotizacionConfig();
+    const bs = parseFloat(document.getElementById('cot-tasa-bs').value);
+    const yuan = parseFloat(document.getElementById('cot-tasa-yuan').value);
+    if (!(bs > 0) || !(yuan > 0)) { notify('❌ Las tasas tienen que ser números mayores a 0', 'error'); return; }
+    cfg.tasaBs = bs;
+    cfg.tasaYuan = yuan;
+    guardarEstado();
+    calcularKakobuy();
+    calcularGoofish();
+    notify('💾 Tasas guardadas', 'success');
+}
+
+function calcularKakobuy() {
+    const cfg = getCotizacionConfig();
+    const usd = parseFloat(document.getElementById('kakobuy-monto').value);
+    const res = document.getElementById('kakobuy-resultado');
+    if (isNaN(usd)) { res.innerHTML = '<span style="color:#666;font-size:13px;">Escribí un monto en $</span>'; return; }
+    res.innerHTML = `<span style="color:#ffaa00;">${formatearBs(usd * cfg.tasaBs)}</span>`;
+}
+
+function calcularGoofish() {
+    const cfg = getCotizacionConfig();
+    const yuan = parseFloat(document.getElementById('goofish-yuan').value);
+    const usdEl = document.getElementById('goofish-usd');
+    const bsEl = document.getElementById('goofish-bs');
+    if (isNaN(yuan)) {
+        usdEl.textContent = '$ 0.00';
+        bsEl.innerHTML = '<span style="color:#666;font-size:13px;">Escribí un monto en ¥</span>';
+        return;
+    }
+    const usd = yuan * cfg.tasaYuan;
+    usdEl.textContent = '$ ' + usd.toFixed(2);
+    bsEl.innerHTML = `<span style="color:#ffaa00;">${formatearBs(usd * cfg.tasaBs)}</span>`;
+}
+
 function guardarEstado() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(estado)); } catch(e) {}
     programarGuardadoEnNube();
@@ -3607,6 +3817,7 @@ function navegarA(seccion) {
         agregar: '➕ Agregar Productos',
         ventas: '💰 Ventas', 
         estimado: '⏳ Estimado de Llegada',
+        cotizacion: '💲 Cotización',
         pedidos: '📦 Productos a Pedido',
         cargar: '📋 Cargar Pedidos',
         historial: '📜 Historial', 
@@ -3623,6 +3834,7 @@ function navegarA(seccion) {
     if (seccion === 'eliminar') renderizarEliminar();
     if (seccion === 'configuracion') cargarConfiguracion();
     if (seccion === 'pedidos') renderizarPedidos();
+    if (seccion === 'cotizacion') renderizarCotizacion();
     if (seccion === 'cargar') renderizarCargarPedidos();
     if (seccion === 'historial') renderizarHistorial();
     if (seccion === 'productos') renderizarProductos();
@@ -5544,7 +5756,7 @@ function cambiarDropVentas() {
 function renderizarVentas() {
     poblarSelectDropVentas();
     const container = document.getElementById('lista-ventas');
-    
+
     const dropId = estado.config.filtroDropVentas || '';
     let ventasFiltradas = estado.ventas;
     if (dropId) {
@@ -5552,23 +5764,38 @@ function renderizarVentas() {
         const idsDelDrop = drop ? drop.productos.map(p => p.ref) : [];
         ventasFiltradas = estado.ventas.filter(v => idsDelDrop.includes(v.productoId));
     }
-    
+
     if (ventasFiltradas.length === 0) {
         container.innerHTML = `<div class="empty"><span class="icon">💰</span><p>No hay ventas ${dropId ? 'en este drop' : ''}</p></div>`;
         return;
     }
+
+    // Agrupar por compra: todo lo que se compró junto (mismo transaccionId) va en UNA sola tarjeta
+    const grupos = {};
+    const orden = [];
+    ventasFiltradas.slice().reverse().forEach(v => {
+        const clave = v.transaccionId || ('venta-' + estado.ventas.indexOf(v));
+        if (!grupos[clave]) { grupos[clave] = []; orden.push(clave); }
+        grupos[clave].push(v);
+    });
+
     let html = '';
-    ventasFiltradas.slice().reverse().forEach((v) => {
-        const index = estado.ventas.indexOf(v);
-        const imgHtml = v.productoPortada ? `<img src="${v.productoPortada}" alt="${v.productoNombre}">` : `<div class="sin-imagen">📦</div>`;
+    orden.forEach(clave => {
+        const items = grupos[clave];
+        const principal = items[0];
+        const index = estado.ventas.indexOf(principal);
+        const total = items.reduce((s, v) => s + (v.total || 0), 0);
+        const nombre = items.map(v => v.productoNombre + (v.cantidad > 1 ? ' x' + v.cantidad : '')).join(' + ');
+        const imgHtml = principal.productoPortada ? `<img src="${principal.productoPortada}" alt="${principal.productoNombre}">` : `<div class="sin-imagen">📦</div>`;
         html += `
             <div class="venta-card" onclick="abrirDetalleVenta(${index})">
                 <div class="imagen-container">${imgHtml}</div>
-                <div class="nombre">${v.productoNombre}${v.cantidad > 1 ? ' x' + v.cantidad : ''}</div>
-                <div class="precio">${formatMoney(v.total)}</div>
-                <div class="cliente">👤 ${v.cliente}</div>
-                <div class="fecha">📅 ${v.fecha} ${v.hora}</div>
-                <span class="badge-venta">${v.pago}</span>
+                <div class="nombre">${nombre}</div>
+                <div class="precio">${formatMoney(total)}</div>
+                <div class="cliente">👤 ${principal.cliente}</div>
+                <div class="fecha">📅 ${principal.fecha} ${principal.hora}</div>
+                <span class="badge-venta">${principal.pago}</span>
+                ${items.length > 1 ? `<div style="font-size:11px;color:#888;margin-top:4px;">🧾 ${items.length} productos en esta compra</div>` : ''}
             </div>
         `;
     });
@@ -6244,7 +6471,7 @@ function actualizarContadoresSidebar() {
     document.getElementById('sidebar-clientes-count').textContent = estado.clientes.length;
     document.getElementById('sidebar-pedidos-count').textContent = estado.pedidos.length;
     document.getElementById('sidebar-cargar-count').textContent = (estado.cargarPedidos || []).length;
-    document.getElementById('sidebar-estimado-count').textContent = (estado.estimados || []).filter(e => !e.llego).length;
+    document.getElementById('sidebar-estimado-count').textContent = (estado.estimados || []).filter(e => !e.recogido).length;
 }
 
 // =============================================
