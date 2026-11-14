@@ -2440,6 +2440,34 @@
         </div>
     </div>
 
+    <div class="modal-cargar-pedidos" id="modalEtapa" onclick="if(event.target===this) cerrarModalEtapa()">
+        <div class="contenido">
+            <h2 id="etapa-titulo">📅 Fecha</h2>
+            <p id="etapa-ayuda" style="color:#888;font-size:12px;margin-bottom:12px;"></p>
+            <div class="campo">
+                <label>📅 Fecha</label>
+                <input type="date" id="etapa-fecha-input">
+            </div>
+            <div class="campo">
+                <label>⏰ Hora</label>
+                <input type="time" id="etapa-hora-input">
+            </div>
+            <div style="display:flex;gap:10px;margin-top:15px;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="cerrarModalEtapa()">✕ Cancelar</button>
+                <button class="btn btn-verde" style="flex:1;" onclick="guardarEtapa()">💾 Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-cargar-pedidos" id="modalAdjuntarVenta" onclick="if(event.target===this) cerrarModalAdjuntarVenta()">
+        <div class="contenido">
+            <h2>🔗 Adjuntar a esta compra</h2>
+            <p style="color:#888;font-size:12px;margin-bottom:12px;">Solo aparecen las compras del mismo cliente.</p>
+            <div id="lista-adjuntar-venta" class="eliminar-lista"></div>
+            <button class="btn btn-secondary" style="width:100%;margin-top:15px;" onclick="cerrarModalAdjuntarVenta()">✕ Cerrar</button>
+        </div>
+    </div>
+
     <!-- MODAL AGREGAR ESTIMADO -->
     <div class="modal-cargar-pedidos" id="modalAgregarEstimado" onclick="if(event.target===this) cerrarModalAgregarEstimado()">
         <div class="contenido">
@@ -3256,39 +3284,97 @@ function crearEstimadoDesdeDrop(dropId) {
     notify(`✅ Paquete de "${drop.nombre}" armado`, 'success');
 }
 
+function estadoEstimadoActual(e) {
+    if (e.recogido) return 'recogido';
+    if (e.llegoBolivia) return 'llegoBolivia';
+    if (e.recibidoChile) return 'recibidoChile';
+    if (e.llego) return 'llego';
+    if (e.llegoChile) return 'llegoChile';
+    if (e.envioPagado) return 'envio';
+    return 'sinPagar';
+}
+
+function resumenEstimados() {
+    const rec = (estado.estimados || []).filter(e => e.recogido);
+    if (rec.length === 0) return null;
+    const prom = campo => {
+        const v = rec.map(e => e[campo]).filter(x => typeof x === 'number');
+        return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : '—';
+    };
+    const conPeso = rec.filter(e => e.peso > 0);
+    const pesoTotal = conPeso.reduce((s, e) => s + e.peso, 0);
+    const bsTotal = conPeso.reduce((s, e) => s + (e.montoBs || 0), 0);
+    return {
+        cantidad: rec.length,
+        diasTotal: prom('diasTotal'),
+        diasEnvioCorreos: prom('diasEnvioCorreos'),
+        diasCorreosImportadora: prom('diasCorreosImportadora'),
+        diasTransitoBolivia: prom('diasTransitoBolivia'),
+        diasBoliviaRecogido: prom('diasBoliviaRecogido'),
+        pesoPromedio: conPeso.length ? pesoTotal / conPeso.length : 0,
+        bsPorKg: pesoTotal > 0 ? bsTotal / pesoTotal : 0
+    };
+}
+
 function renderizarEstimados() {
     const container = document.getElementById('lista-estimado');
     if (!container) return;
     if (!estado.estimados) estado.estimados = [];
 
+    const r = resumenEstimados();
+    const resumenHtml = r ? `
+        <div style="background:#0d0d0f;border:1px solid #333;border-radius:12px;padding:14px;margin-bottom:15px;">
+            <div style="font-weight:bold;color:#ff8800;margin-bottom:8px;">📊 Promedios de ${r.cantidad} paquete(s) recogido(s)</div>
+            <div style="font-size:13px;color:#ccc;line-height:1.9;">
+                🕒 Tiempo total promedio: <b>${r.diasTotal} día(s)</b><br>
+                📬 Envío → Correos Chile: <b>${r.diasEnvioCorreos} día(s)</b><br>
+                📥 Correos → importadora: <b>${r.diasCorreosImportadora} día(s)</b><br>
+                🚚 Importadora → Bolivia: <b>${r.diasTransitoBolivia} día(s)</b><br>
+                🇧🇴 Bolivia → recogido: <b>${r.diasBoliviaRecogido} día(s)</b><br>
+                ⚖️ Peso promedio: <b>${r.pesoPromedio.toFixed(2)} kg</b> · 💵 Bs por kg: <b>${formatearBs(r.bsPorKg)}</b>
+            </div>
+        </div>` : '';
+
     if (estado.estimados.length === 0) {
-        container.innerHTML = `<div class="empty"><span class="icon">⏳</span><p>No hay paquetes en camino. Toca "➕ Agregar" para armar uno.</p></div>`;
+        container.innerHTML = resumenHtml + `<div class="empty"><span class="icon">⏳</span><p>No hay paquetes en camino. Toca "➕ Agregar" para armar uno.</p></div>`;
         return;
     }
 
-    container.innerHTML = estado.estimados.map(e => {
+    const listaHtml = estado.estimados.map(e => {
         const drop = estado.drops.find(d => d.id === e.dropId);
         const cantidad = drop ? drop.productos.length : 0;
-
+        const st = estadoEstimadoActual(e);
+        const btn = (texto, fn, color) => `<button class="btn ${color}" style="padding:6px 14px;font-size:12px;" onclick="event.stopPropagation(); ${fn}">${texto}</button>`;
+        const badge = (txt, cls) => `<span class="${cls}">${txt}</span>`;
         let icono, estadoHtml, accionHtml;
-        if (e.recogido) {
+        if (st === 'recogido') {
             icono = '✅';
-            estadoHtml = `<span class="badge-venta">✅ Recogido en Bolivia · ${e.diasTotal || 0} día(s) en total</span>`;
+            estadoHtml = badge(`✅ Recogido en Bolivia · ${e.diasTotal || 0} día(s) en total`, 'badge-venta');
             accionHtml = '';
-        } else if (e.llego) {
+        } else if (st === 'llegoBolivia') {
+            icono = '🇧🇴';
+            estadoHtml = badge(`🇧🇴 En Bolivia · ${calcularDiasDesde(e.timestampLlegoBolivia)} día(s) esperando`, 'badge-estado badge-cargado');
+            accionHtml = btn('✅ Recogido en Bolivia', `abrirModalRecogido('${e.id}')`, 'btn-verde');
+        } else if (st === 'recibidoChile') {
+            icono = '🚚';
+            estadoHtml = badge(`🚚 Camino a Bolivia · ${calcularDiasDesde(e.timestampRecibidoChile)} día(s)`, 'badge-estado badge-cargado');
+            accionHtml = btn('🇧🇴 Llegó a Bolivia', `abrirModalEtapa('${e.id}','llegoBolivia')`, 'btn-verde');
+        } else if (st === 'llego') {
             icono = '🇨🇱';
-            const dias = calcularDiasDesde(e.timestampLlegada);
-            estadoHtml = `<span class="badge-estado badge-cargado">🇨🇱 En Chile · ${dias} día(s) desde Correos</span>`;
-            accionHtml = `<button class="btn btn-verde" style="padding:6px 14px;font-size:12px;" onclick="event.stopPropagation(); abrirModalRecogido('${e.id}')">✅ Recogido en Bolivia</button>`;
-        } else if (e.envioPagado) {
+            estadoHtml = badge(`🇨🇱 En Chile · ${calcularDiasDesde(e.timestampLlegada)} día(s) desde Correos`, 'badge-estado badge-cargado');
+            accionHtml = btn('📥 Recibido en Chile', `abrirModalEtapa('${e.id}','recibidoChile')`, 'btn-verde');
+        } else if (st === 'llegoChile') {
+            icono = '🇨🇱';
+            estadoHtml = badge(`🇨🇱 En Chile · ${calcularDiasDesde(e.timestampLlegoChile)} día(s) esperando Correos`, 'badge-estado badge-cargado');
+            accionHtml = btn('📬 Llegó a Correos Chile', `marcarPaqueteLlego('${e.id}')`, 'btn-verde');
+        } else if (st === 'envio') {
             icono = '⏳';
-            const dias = calcularDiasDesde(e.timestampEnvio);
-            estadoHtml = `<span class="badge-estado badge-cargado">🚚 En camino · ${dias} día(s)</span>`;
-            accionHtml = `<button class="btn btn-verde" style="padding:6px 14px;font-size:12px;" onclick="event.stopPropagation(); marcarPaqueteLlego('${e.id}')">📬 Llegó a Correos Chile</button>`;
+            estadoHtml = badge(`🚚 En camino · ${calcularDiasDesde(e.timestampEnvio)} día(s)`, 'badge-estado badge-cargado');
+            accionHtml = btn('🇨🇱 Llegó a Chile', `abrirModalEtapa('${e.id}','llegoChile')`, 'btn-verde');
         } else {
             icono = '⏳';
             estadoHtml = `<span class="badge-estado" style="background:#333;color:#ccc;">⏸️ Envío sin pagar</span>`;
-            accionHtml = `<button class="btn btn-azul" style="padding:6px 14px;font-size:12px;" onclick="event.stopPropagation(); marcarEnvioPagado('${e.id}')">💳 Envío pagado</button>`;
+            accionHtml = btn('💳 Envío pagado', `marcarEnvioPagado('${e.id}')`, 'btn-azul');
         }
 
         return `
@@ -3302,6 +3388,8 @@ function renderizarEstimados() {
             </div>
         `;
     }).join('');
+
+    container.innerHTML = resumenHtml + listaHtml;
 }
 
 function marcarEnvioPagado(id) {
@@ -3345,21 +3433,78 @@ function guardarFechaEnvio() {
 }
 
 function marcarPaqueteLlego(id) {
-    const est = estado.estimados.find(e => e.id === id);
-    if (!est) return;
-    if (!est.envioPagado) { notify('❌ Primero marca el envío como pagado', 'error'); return; }
-    if (!confirm(`¿Confirmar que el paquete de "${est.dropNombre}" llegó al centro de procesamiento de Correos Chile?`)) return;
+    abrirModalEtapa(id, 'llegoCorreos');
+}
 
-    const ahora = new Date();
-    est.llego = true;
-    est.timestampLlegada = ahora.getTime();
-    est.fechaLlegada = ahora.toLocaleDateString() + ' ' + ahora.toLocaleTimeString();
-    est.diasTardo = calcularDiasEntre(est.timestampEnvio, est.timestampLlegada);
+// Etapas del paquete después del envío. Cada una guarda fecha y hora (del track).
+const ETAPAS_ESTIMADO = {
+    llegoChile:    { flag: 'llegoChile',    ts: 'timestampLlegoChile',    fecha: 'fechaLlegoChile',    titulo: '🇨🇱 Llegó a Chile (track)', ayuda: 'Fecha y hora de tu track en que el paquete llegó a Chile (por ejemplo 2026-11-04 11:43).' },
+    llegoCorreos:  { flag: 'llego',         ts: 'timestampLlegada',       fecha: 'fechaLlegada',       titulo: '📬 Llegó a Correos Chile', ayuda: 'Fecha y hora en que el paquete llegó al centro de procesamiento de Correos Chile.' },
+    recibidoChile: { flag: 'recibidoChile', ts: 'timestampRecibidoChile', fecha: 'fechaRecibidoChile', titulo: '📥 Recibido en Chile por la importadora', ayuda: 'Fecha y hora en que la importadora lo recibió en Chile.' },
+    llegoBolivia:  { flag: 'llegoBolivia',  ts: 'timestampLlegoBolivia',  fecha: 'fechaLlegoBolivia',  titulo: '🇧🇴 Llegó a Bolivia', ayuda: 'Fecha y hora en que el paquete llegó a Bolivia.' }
+};
+const ORDEN_ETAPAS = ['timestampEnvio', 'timestampLlegoChile', 'timestampLlegada', 'timestampRecibidoChile', 'timestampLlegoBolivia', 'timestampRecogido'];
+let etapaEditando = null;
+
+function abrirModalEtapa(id, etapa) {
+    const est = estado.estimados.find(e => e.id === id);
+    const cfg = ETAPAS_ESTIMADO[etapa];
+    if (!est || !cfg) return;
+    if (!est.envioPagado) { notify('❌ Primero marca el envío como pagado', 'error'); return; }
+    etapaEditando = { id: id, etapa: etapa };
+    const f = est[cfg.ts] ? new Date(est[cfg.ts]) : new Date();
+    const pad = n => String(n).padStart(2, '0');
+    document.getElementById('etapa-titulo').textContent = cfg.titulo;
+    document.getElementById('etapa-ayuda').textContent = cfg.ayuda;
+    document.getElementById('etapa-fecha-input').value = `${f.getFullYear()}-${pad(f.getMonth() + 1)}-${pad(f.getDate())}`;
+    document.getElementById('etapa-hora-input').value = `${pad(f.getHours())}:${pad(f.getMinutes())}`;
+    document.getElementById('modalEtapa').classList.add('active');
+}
+
+function cerrarModalEtapa() {
+    document.getElementById('modalEtapa').classList.remove('active');
+    etapaEditando = null;
+}
+
+function guardarEtapa() {
+    if (!etapaEditando) return;
+    const est = estado.estimados.find(e => e.id === etapaEditando.id);
+    const cfg = ETAPAS_ESTIMADO[etapaEditando.etapa];
+    if (!est || !cfg) return;
+    const fechaStr = document.getElementById('etapa-fecha-input').value;
+    const horaStr = document.getElementById('etapa-hora-input').value || '00:00';
+    if (!fechaStr) { notify('❌ Selecciona una fecha', 'error'); return; }
+    const [anio, mes, dia] = fechaStr.split('-').map(Number);
+    const [hh, mm] = horaStr.split(':').map(Number);
+    const fecha = new Date(anio, mes - 1, dia, hh, mm, 0);
+
+    const pos = ORDEN_ETAPAS.indexOf(cfg.ts);
+    let previo = null;
+    for (let k = pos - 1; k >= 0 && !previo; k--) previo = est[ORDEN_ETAPAS[k]];
+    if (!previo) { notify('❌ Falta completar la etapa anterior', 'error'); return; }
+    if (fecha.getTime() < previo) { notify('❌ La fecha no puede ser antes de la etapa anterior', 'error'); return; }
+
+    est[cfg.flag] = true;
+    est[cfg.ts] = fecha.getTime();
+    est[cfg.fecha] = fecha.toLocaleDateString() + ' ' + fecha.toLocaleTimeString();
+    calcularDiasEtapas(est);
 
     guardarEstado();
+    cerrarModalEtapa();
     renderizarEstimados();
     actualizarContadoresSidebar();
-    notify(`📬 Llegó a Correos Chile — tardó ${est.diasTardo} día(s) desde el envío`, 'success');
+    notify(`✅ ${cfg.titulo} registrado`, 'success');
+}
+
+// Calcula los días de cada tramo (se guardan para hacer estimaciones de próximos envíos)
+function calcularDiasEtapas(est) {
+    est.diasEnvioChile = est.llegoChile ? calcularDiasEntre(est.timestampEnvio, est.timestampLlegoChile) : undefined;
+    est.diasChileCorreos = (est.llego && est.llegoChile) ? calcularDiasEntre(est.timestampLlegoChile, est.timestampLlegada) : undefined;
+    est.diasEnvioCorreos = est.llego ? calcularDiasEntre(est.timestampEnvio, est.timestampLlegada) : undefined;
+    est.diasCorreosImportadora = est.recibidoChile ? calcularDiasEntre(est.timestampLlegada, est.timestampRecibidoChile) : undefined;
+    est.diasTransitoBolivia = est.llegoBolivia ? calcularDiasEntre(est.timestampRecibidoChile, est.timestampLlegoBolivia) : undefined;
+    est.diasBoliviaRecogido = est.recogido ? calcularDiasEntre(est.timestampLlegoBolivia || est.timestampRecibidoChile || est.timestampLlegada, est.timestampRecogido) : undefined;
+    est.diasTotal = est.recogido ? calcularDiasEntre(est.timestampEnvio, est.timestampRecogido) : undefined;
 }
 
 function calcularDiasEntre(desde, hasta) {
@@ -3373,7 +3518,7 @@ let recogidoEditandoId = null;
 function abrirModalRecogido(id) {
     const est = estado.estimados.find(e => e.id === id);
     if (!est) return;
-    if (!est.llego) { notify('❌ Primero marca que llegó a Correos Chile', 'error'); return; }
+    if (!est.llegoBolivia && !est.recogido) { notify('❌ Primero marca que llegó a Bolivia', 'error'); return; }
     recogidoEditandoId = id;
     const ahora = new Date();
     const pad = n => String(n).padStart(2, '0');
@@ -3411,13 +3556,13 @@ function guardarRecogido() {
     const [hh, mm] = horaStr.split(':').map(Number);
     const fecha = new Date(anio, mes - 1, dia, hh, mm, 0);
 
+    if (fecha.getTime() < (est.timestampLlegoBolivia || est.timestampRecibidoChile || est.timestampLlegada || 0)) { notify('❌ La fecha de recogido no puede ser antes de llegar a Bolivia', 'error'); return; }
     est.recogido = true;
     est.timestampRecogido = fecha.getTime();
     est.fechaRecogido = fecha.toLocaleDateString() + ' ' + fecha.toLocaleTimeString();
     est.peso = peso;
     est.montoBs = bs;
-    est.diasChileBolivia = calcularDiasEntre(est.timestampLlegada, est.timestampRecogido);
-    est.diasTotal = calcularDiasEntre(est.timestampEnvio || est.timestampLlegada, est.timestampRecogido);
+    calcularDiasEtapas(est);
 
     guardarEstado();
     cerrarModalRecogido();
@@ -3430,50 +3575,80 @@ function abrirDetalleEstimado(id) {
     const est = estado.estimados.find(e => e.id === id);
     if (!est) return;
     const drop = estado.drops.find(d => d.id === est.dropId);
-
     document.getElementById('detalle-estimado-titulo').textContent = '⏳ ' + est.dropNombre;
 
-    let diasActuales = 0, labelDias = 'esperando';
-    if (est.recogido) { diasActuales = est.diasTotal || 0; labelDias = 'en total (envío → Bolivia)'; }
-    else if (est.llego) { diasActuales = calcularDiasDesde(est.timestampLlegada); labelDias = 'desde Correos Chile'; }
-    else if (est.envioPagado) { diasActuales = calcularDiasDesde(est.timestampEnvio); }
+    const fila = (label, valor) => `<div class="item"><span class="label">${label}</span><span class="valor">${valor}</span></div>`;
+    const dias = (label, n) => fila(label, `<span style="color:#ffaa00;font-weight:bold;">${n} día(s)</span>`);
 
-    let productosHtml = '';
+    let filas = fila('💳 Envío pagado', est.fechaEnvio || 'No registrado');
+    if (est.llegoChile) {
+        filas += dias('🇨🇱 Envío → llegó a Chile', calcularDiasEntre(est.timestampEnvio, est.timestampLlegoChile));
+        filas += fila('🇨🇱 Llegó a Chile (track)', est.fechaLlegoChile);
+    }
+    if (est.llego) {
+        const desde = est.llegoChile ? est.timestampLlegoChile : est.timestampEnvio;
+        filas += dias(est.llegoChile ? '📦 Llegada Chile → Correos' : '⏱️ Envío → Correos Chile', calcularDiasEntre(desde, est.timestampLlegada));
+        filas += fila('📬 Llegó a Correos Chile', est.fechaLlegada);
+    }
+    if (est.recibidoChile) {
+        filas += dias('🇨🇱 Correos → importadora', calcularDiasEntre(est.timestampLlegada, est.timestampRecibidoChile));
+        filas += fila('📥 Recibido en Chile por importadora', est.fechaRecibidoChile);
+    }
+    if (est.llegoBolivia) {
+        filas += dias('🚚 Importadora → Bolivia', calcularDiasEntre(est.timestampRecibidoChile, est.timestampLlegoBolivia));
+        filas += fila('🇧🇴 Llegó a Bolivia', est.fechaLlegoBolivia);
+    }
+    if (est.recogido) {
+        filas += dias('🇧🇴 Bolivia → recogido', calcularDiasEntre(est.timestampLlegoBolivia || est.timestampRecibidoChile || est.timestampLlegada, est.timestampRecogido));
+        filas += fila('✅ Recogido el', est.fechaRecogido);
+        filas += fila('⚖️ Peso', `${est.peso} kg`);
+        filas += fila('🇧🇴 Bs cobrados por importadora', formatMoney(est.montoBs));
+        filas += dias('🕒 Días totales (envío → recogido)', calcularDiasEntre(est.timestampEnvio, est.timestampRecogido));
+    } else if (est.envioPagado) {
+        filas += dias('🕒 Días totales hasta hoy', calcularDiasDesde(est.timestampEnvio));
+    }
+
+    const nombresEstado = { sinPagar: '⏸️ Envío sin pagar', envio: '🚚 En camino', llegoChile: '🇨🇱 En Chile (llegó a Chile)', llego: '📬 En Correos Chile', recibidoChile: '🚚 Camino a Bolivia', llegoBolivia: '🇧🇴 En Bolivia (por recoger)', recogido: '✅ Recogido en Bolivia' };
+    const estadoTxt = nombresEstado[estadoEstimadoActual(est)];
+
+    const btnEditar = (cond, etapa, texto) => cond ? `<button class="btn btn-secondary" style="flex:1 1 45%;" onclick="cerrarModalDetalleEstimado(); abrirModalEtapa('${est.id}','${etapa}')">${texto}</button>` : '';
+    const btnsEtapas = [
+        est.envioPagado ? `<button class="btn btn-secondary" style="flex:1 1 45%;" onclick="cerrarModalDetalleEstimado(); marcarEnvioPagado('${est.id}')">✏️ Editar envío</button>` : '',
+        est.envioPagado ? `<button class="btn btn-secondary" style="flex:1 1 45%;" onclick="cerrarModalDetalleEstimado(); abrirModalEtapa('${est.id}','llegoChile')">${est.llegoChile ? '✏️ Editar llegada a Chile' : '🇨🇱 Llegó a Chile'}</button>` : '',
+        btnEditar(est.llego, 'llegoCorreos', '✏️ Editar llegada Correos'),
+        btnEditar(est.recibidoChile, 'recibidoChile', '✏️ Editar recibido Chile'),
+        btnEditar(est.llegoBolivia, 'llegoBolivia', '✏️ Editar llegada Bolivia'),
+        (est.llegoBolivia || est.recogido) ? `<button class="btn btn-verde" style="flex:1 1 45%;" onclick="cerrarModalDetalleEstimado(); abrirModalRecogido('${est.id}')">${est.recogido ? '✏️ Editar recogido' : '✅ Recogido en Bolivia'}</button>` : ''
+    ].join('');
+
+    let productosHtml = '<div class="empty" style="padding:15px;"><p>Este drop no tiene productos cargados</p></div>';
     if (drop && drop.productos.length > 0) {
-        productosHtml = drop.productos.map(ref => {
+        let traidas = 0, stockActual = 0, distintos = 0;
+        const filas = drop.productos.map(ref => {
             const fuente = ref.tipo === 'pedido' ? estado.pedidos : estado.productos;
             const prod = fuente.find(p => p.id === ref.ref) || estado.productos.find(p => p.id === ref.ref);
             if (!prod) return '';
+            const cantTraida = prod.stockInicial != null ? prod.stockInicial : (prod.stock || 0);
+            const stock = prod.stock || 0;
+            traidas += cantTraida;
+            stockActual += stock;
+            distintos++;
             const img = prod.portada ? `<img src="${prod.portada}" style="width:40px;height:40px;object-fit:contain;border-radius:6px;">` : '<span style="font-size:20px;">📦</span>';
-            return `<div class="eliminar-item"><div class="info">${img}<div><div class="nombre">${prod.nombre}</div><div class="precio">${formatMoney(prod.precio)}</div></div></div></div>`;
+            return `<div class="eliminar-item"><div class="info">${img}<div><div class="nombre">${prod.nombre}</div><div class="precio">Traje: <b>${cantTraida}</b> · Stock ahora: <b>${stock}</b></div></div></div></div>`;
         }).join('');
-    } else {
-        productosHtml = '<div class="empty" style="padding:15px;"><p>Este drop no tiene productos cargados</p></div>';
+        productosHtml = `<div style="font-size:13px;color:#ccc;margin-bottom:10px;">${distintos} producto(s) distintos · 📦 <b>${traidas}</b> unidades traídas · Stock total ahora: <b>${stockActual}</b></div>${filas}`;
     }
-
-    const estadoTxt = est.recogido ? '✅ Recogido en Bolivia' : (est.llego ? '🇨🇱 En Chile (camino a Bolivia)' : (est.envioPagado ? '🚚 En camino' : '⏸️ Envío sin pagar'));
-    const filasLlegada = est.llego ? `<div class="item"><span class="label">📬 Llegó a Correos Chile</span><span class="valor">${est.fechaLlegada}</span></div>` : '';
-    const filasRecogido = est.recogido ? `
-            <div class="item"><span class="label">✅ Recogido el</span><span class="valor">${est.fechaRecogido}</span></div>
-            <div class="item"><span class="label">⚖️ Peso</span><span class="valor">${est.peso} kg</span></div>
-            <div class="item"><span class="label">🇧🇴 Bs cobrados por importadora</span><span class="valor">${formatMoney(est.montoBs)}</span></div>
-            <div class="item"><span class="label">🇨🇱 Días Correos Chile → Bolivia</span><span class="valor">${est.diasChileBolivia || 0} día(s)</span></div>` : '';
-    const btnRecogido = est.llego ? `<button class="btn btn-verde" style="flex:1;" onclick="cerrarModalDetalleEstimado(); abrirModalRecogido('${est.id}')">${est.recogido ? '✏️ Editar datos de recogido' : '✅ Recogido en Bolivia'}</button>` : '';
 
     document.getElementById('detalle-estimado-contenido').innerHTML = `
         <div class="info-venta" style="margin-bottom:15px;">
             <div class="item"><span class="label">📌 Estado</span><span class="valor">${estadoTxt}</span></div>
-            <div class="item"><span class="label">💳 Envío pagado</span><span class="valor">${est.fechaEnvio || 'No registrado'}</span></div>
-            ${filasLlegada}
-            ${filasRecogido}
-            <div class="item"><span class="label">⏱️ Días ${labelDias}</span><span class="valor" style="color:#ffaa00;font-weight:bold;">${diasActuales} día(s)</span></div>
+            ${filas}
         </div>
         <div style="font-weight:bold;margin-bottom:8px;color:#ff8800;">📦 Contenido del paquete</div>
         ${productosHtml}
-        <div style="display:flex;gap:10px;margin-top:15px;flex-wrap:wrap;">
-            <button class="btn btn-secondary" style="flex:1;" onclick="cerrarModalDetalleEstimado(); marcarEnvioPagado('${est.id}')">✏️ Editar fecha de envío</button>
-            ${btnRecogido}
-            <button class="btn btn-danger" style="flex:1;" onclick="eliminarEstimado('${est.id}')">🗑️ Quitar paquete</button>
+        <div style="display:flex;gap:8px;margin-top:15px;flex-wrap:wrap;">
+            ${btnsEtapas}
+            <button class="btn btn-danger" style="flex:1 1 100%;" onclick="eliminarEstimado('${est.id}')">🗑️ Quitar paquete</button>
         </div>
     `;
     document.getElementById('modalDetalleEstimado').classList.add('active');
@@ -5768,6 +5943,34 @@ function cambiarDropVentas() {
     renderizarVentas();
 }
 
+// Agrupa las ventas por compra (en orden de registro). Cada compra es un arreglo de ventas.
+function agruparCompras(lista) {
+    const compras = [];
+    const porTransaccion = {};
+    const fechaValida = t => t && t > 946684800000; // después del año 2000
+    lista.forEach(v => {
+        if (v.transaccionId) {
+            const k = 'T' + v.transaccionId;
+            if (!porTransaccion[k]) { porTransaccion[k] = []; compras.push(porTransaccion[k]); }
+            porTransaccion[k].push(v);
+            return;
+        }
+        // Venta vieja sin transaccionId: se junta con la anterior si es del mismo cliente,
+        // está seguida en el registro y (si la fecha es válida) con menos de 5 minutos de diferencia
+        const grupoAnterior = compras[compras.length - 1];
+        const anterior = grupoAnterior ? grupoAnterior[grupoAnterior.length - 1] : null;
+        let juntar = false;
+        if (anterior && !anterior.transaccionId && anterior.cliente === v.cliente) {
+            juntar = (fechaValida(anterior.timestamp) && fechaValida(v.timestamp))
+                ? Math.abs(v.timestamp - anterior.timestamp) <= 5 * 60 * 1000
+                : true;
+        }
+        if (juntar) grupoAnterior.push(v);
+        else compras.push([v]);
+    });
+    return compras;
+}
+
 function renderizarVentas() {
     poblarSelectDropVentas();
     const container = document.getElementById('lista-ventas');
@@ -5785,39 +5988,16 @@ function renderizarVentas() {
         return;
     }
 
-    // Agrupar por compra. Ventas nuevas: mismo transaccionId.
-    // Ventas viejas (sin transaccionId): se juntan si son del mismo cliente, mismo día
-    // y con menos de 5 minutos de diferencia con la última venta del grupo.
-    const grupos = {};
-    const orden = [];
-    const cronologicas = ventasFiltradas.slice().sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-    cronologicas.forEach(v => {
-        let clave = null;
-        if (v.transaccionId) {
-            clave = 'T' + v.transaccionId;
-        } else {
-            for (let k = orden.length - 1; k >= 0; k--) {
-                const g = grupos[orden[k]];
-                const ultima = g[g.length - 1];
-                if (!ultima.transaccionId && ultima.cliente === v.cliente && ultima.fecha === v.fecha &&
-                    Math.abs((v.timestamp || 0) - (ultima.timestamp || 0)) <= 5 * 60 * 1000) {
-                    clave = orden[k];
-                    break;
-                }
-            }
-            if (!clave) clave = 'L' + estado.ventas.indexOf(v);
-        }
-        if (!grupos[clave]) { grupos[clave] = []; orden.push(clave); }
-        grupos[clave].push(v);
-    });
+    const compras = agruparCompras(ventasFiltradas);
 
     let html = '';
-    orden.slice().reverse().forEach(clave => {
-        const items = grupos[clave];
+    compras.slice().reverse().forEach(items => {
         const principal = items[0];
         const index = estado.ventas.indexOf(principal);
         const total = items.reduce((s, v) => s + (v.total || 0), 0);
-        const nombre = items.map(v => v.productoNombre + (v.cantidad > 1 ? ' x' + v.cantidad : '')).join(' + ');
+        const nombre = items.length > 1
+            ? items.map(v => `<div style="font-size:12px;color:#ccc;">${v.productoNombre}${v.cantidad > 1 ? ' x' + v.cantidad : ''} · ${formatMoney(v.total)}${v.descuento > 0 ? ' (desc. ' + formatMoney(v.descuento) + ')' : ''}</div>`).join('')
+            : principal.productoNombre + (principal.cantidad > 1 ? ' x' + principal.cantidad : '');
         const imgHtml = principal.productoPortada ? `<img src="${principal.productoPortada}" alt="${principal.productoNombre}">` : `<div class="sin-imagen">📦</div>`;
         html += `
             <div class="venta-card" onclick="abrirDetalleVenta(${index})">
@@ -5851,18 +6031,18 @@ function abrirDetalleVenta(index) {
         fotosHtml = '<p style="color:#888;font-size:13px;">📷 No hay fotos</p>';
     }
     let otrosProductosHtml = '';
-    if (venta.transaccionId) {
-        const hermanos = estado.ventas.filter(v => v.transaccionId === venta.transaccionId && v.id !== venta.id);
-        if (hermanos.length > 0) {
-            otrosProductosHtml = `
-                <div class="productos-venta" style="margin-top:10px;">
-                    <div style="font-weight:bold;margin-bottom:8px;color:#ff8800;">🧾 Otros productos de esta misma compra</div>
-                    ${hermanos.map(h => `<div class="item-prod"><span>${h.productoNombre}${h.cantidad > 1 ? ' x' + h.cantidad : ''}</span><span>${formatMoney(h.total)}</span></div>`).join('')}
-                    <div class="item-prod" style="border-top:1px solid #333;padding-top:6px;margin-top:6px;"><span><b>Total de la compra</b></span><span><b>${formatMoney(venta.total + hermanos.reduce((s, h) => s + h.total, 0))}</b></span></div>
-                </div>
-            `;
-        }
-    }
+    const compra = agruparCompras(estado.ventas).find(g => g.includes(venta)) || [venta];
+    const totalCompra = compra.reduce((s, v) => s + (v.total || 0), 0);
+    const descuentoCompra = compra.reduce((s, v) => s + (v.descuento || 0), 0);
+    const filasCompra = compra.map(h => `<div class="item-prod"><span>${h.productoNombre}${h.cantidad > 1 ? ' x' + h.cantidad : ''}<br><small style="color:#888;">${formatMoney(h.productoPrecio)}${h.cantidad > 1 ? ' × ' + h.cantidad : ''}${h.descuento > 0 ? ' − desc. ' + formatMoney(h.descuento) : ''}</small></span><span>${formatMoney(h.total)}</span></div>`).join('');
+    otrosProductosHtml = `
+        <div class="productos-venta" style="margin-top:10px;">
+            <div style="font-weight:bold;margin-bottom:8px;color:#ff8800;">🧾 Productos de esta compra (${compra.length})</div>
+            ${filasCompra}
+            ${descuentoCompra > 0 ? `<div class="item-prod"><span>Descuento total</span><span>${formatMoney(descuentoCompra)}</span></div>` : ''}
+            <div class="item-prod" style="border-top:1px solid #333;padding-top:6px;margin-top:6px;"><span><b>Total de la compra</b></span><span><b>${formatMoney(totalCompra)}</b></span></div>
+            <button class="btn btn-secondary" style="width:100%;margin-top:10px;" onclick="abrirModalAdjuntarVenta(${estado.ventas.indexOf(venta)})">🔗 Adjuntar venta del mismo cliente</button>
+        </div>`;
     
     container.innerHTML = `
         <div class="info-venta">
@@ -5890,6 +6070,65 @@ function abrirDetalleVenta(index) {
     `;
     document.getElementById('modalDetalleVenta').classList.add('active');
 }
+let adjuntarVentaIndex = null;
+
+function normalizarNombre(n) {
+    return (n || '').trim().toLowerCase();
+}
+
+function abrirModalAdjuntarVenta(index) {
+    const venta = estado.ventas[index];
+    if (!venta) return;
+    adjuntarVentaIndex = index;
+    const compra = agruparCompras(estado.ventas).find(g => g.includes(venta)) || [venta];
+    // Solo ventas del MISMO cliente (mismo nombre) que todavía no están en esta compra
+    const candidatas = estado.ventas.filter(v => normalizarNombre(v.cliente) === normalizarNombre(venta.cliente) && !compra.includes(v));
+    const cont = document.getElementById('lista-adjuntar-venta');
+    if (candidatas.length === 0) {
+        cont.innerHTML = `<div class="empty"><p>No hay otras ventas de "${venta.cliente}" para adjuntar</p></div>`;
+    } else {
+        cont.innerHTML = candidatas.slice().reverse().map(v => `
+            <div class="eliminar-item" style="cursor:pointer;" onclick="adjuntarVentaACompra(${estado.ventas.indexOf(v)})">
+                <div class="info"><div>
+                    <div class="nombre">${v.productoNombre}${v.cantidad > 1 ? ' x' + v.cantidad : ''}</div>
+                    <div class="precio">${formatMoney(v.total)} · 📅 ${v.fecha} ${v.hora}</div>
+                </div></div>
+                <button class="btn btn-azul" style="padding:6px 14px;font-size:12px;">➕ Adjuntar</button>
+            </div>
+        `).join('');
+    }
+    document.getElementById('modalAdjuntarVenta').classList.add('active');
+}
+
+function cerrarModalAdjuntarVenta() {
+    document.getElementById('modalAdjuntarVenta').classList.remove('active');
+    adjuntarVentaIndex = null;
+}
+
+function adjuntarVentaACompra(indexCandidata) {
+    const venta = estado.ventas[adjuntarVentaIndex];
+    const otra = estado.ventas[indexCandidata];
+    if (!venta || !otra) return;
+    if (normalizarNombre(otra.cliente) !== normalizarNombre(venta.cliente)) {
+        notify('❌ Solo se puede adjuntar una venta del mismo cliente', 'error');
+        return;
+    }
+    // Si la compra es vieja (sin identificador), le damos uno a todo lo que está junto
+    if (!venta.transaccionId) {
+        const compra = agruparCompras(estado.ventas).find(g => g.includes(venta)) || [venta];
+        const nuevoId = generarId();
+        compra.forEach(v => { v.transaccionId = nuevoId; });
+    }
+    otra.transaccionId = venta.transaccionId;
+    guardarEstado();
+    const indexVenta = adjuntarVentaIndex;
+    cerrarModalAdjuntarVenta();
+    renderizarVentas();
+    renderizarClientes();
+    abrirDetalleVenta(indexVenta);
+    notify(`✅ "${otra.productoNombre}" adjuntado a la compra`, 'success');
+}
+
 function cerrarModalDetalleVenta() {
     document.getElementById('modalDetalleVenta').classList.remove('active');
     ventaEditandoIndex = null;
