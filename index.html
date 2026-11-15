@@ -2072,7 +2072,7 @@
 
     <!-- DASHBOARD -->
     <div id="seccion-dashboard" class="seccion active">
-        <div id="dash-logros" style="margin-bottom:14px;touch-action:none;user-select:none;-webkit-user-select:none;">
+        <div id="dash-logros" style="margin-bottom:14px;touch-action:pan-y;user-select:none;-webkit-user-select:none;">
             <div id="dash-logros-card"></div>
             <div id="dash-logros-dots" style="display:flex;justify-content:center;gap:6px;margin-top:6px;"></div>
         </div>
@@ -6682,24 +6682,19 @@ function initDashLogros() {
     const el = document.getElementById('dash-logros');
     if (!el || el.dataset.init) return;
     el.dataset.init = '1';
-    el.addEventListener('pointerdown', e => {
-        logroIniX = e.clientX;
-        logroArmado = false;
-        clearTimeout(logroArmTimer);
-        logroArmTimer = setTimeout(() => { logroArmado = true; }, 300);
-    });
-    const soltar = e => {
-        clearTimeout(logroArmTimer);
-        if (!logroArmado) return;
-        logroArmado = false;
-        const dx = e.clientX - logroIniX;
+    let iniX = 0, iniY = 0, activo = false;
+    el.addEventListener('pointerdown', e => { iniX = e.clientX; iniY = e.clientY; activo = true; });
+    el.addEventListener('pointerup', e => {
+        if (!activo) return;
+        activo = false;
+        const dx = e.clientX - iniX, dy = e.clientY - iniY;
         const n = (estado.metas || []).length;
-        if (Math.abs(dx) < 40 || n < 2) return;
+        // Deslizar rápido y fácil: a la derecha = siguiente; a la izquierda = último
+        if (n < 2 || Math.abs(dx) < 30 || Math.abs(dx) < Math.abs(dy)) return;
         logroDashIdx = dx > 0 ? (logroDashIdx + 1) % n : n - 1;
         renderDashLogros();
-    };
-    el.addEventListener('pointerup', soltar);
-    el.addEventListener('pointercancel', () => { clearTimeout(logroArmTimer); logroArmado = false; });
+    });
+    el.addEventListener('pointercancel', () => { activo = false; });
 }
 
 function renderCapitalDashboard() {
