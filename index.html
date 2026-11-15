@@ -1712,6 +1712,9 @@
     <div class="sidebar-item" onclick="navegarA('cotizacion')">
         <span class="icon">💲</span> Cotización
     </div>
+    <div class="sidebar-item" onclick="navegarA('logros')">
+        <span class="icon">🏆</span> Logros
+    </div>
     <div class="sidebar-item" onclick="navegarA('pedidos')">
         <span class="icon">📦</span> Productos a Pedido
         <span class="badge" id="sidebar-pedidos-count">0</span>
@@ -2069,23 +2072,69 @@
 
     <!-- DASHBOARD -->
     <div id="seccion-dashboard" class="seccion active">
+        <div style="background:linear-gradient(135deg,#1a1a1e,#0d0d0f);border:1px solid #ff6b00;border-radius:14px;padding:18px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+            <div>
+                <div style="font-size:13px;color:#aaa;">🏦 Capital actual</div>
+                <div id="capital-valor" style="font-size:30px;font-weight:bold;color:#ffaa00;">$ 0.00</div>
+                <div id="capital-secundario" style="font-size:13px;color:#888;">≈ Bs 0.00</div>
+            </div>
+            <button id="capital-boton" class="btn btn-azul" onclick="toggleMonedaCapital()">🔁 Ver en Bs</button>
+        </div>
         <div class="dash-grid">
             <div class="stat-card"><div class="icon">💰</div><div class="number" id="stat-total-ventas">Bs 0.00</div><div class="label">Total Ventas</div></div>
             <div class="stat-card"><div class="icon">📦</div><div class="number" id="stat-total-productos">0</div><div class="label">Productos</div></div>
             <div class="stat-card"><div class="icon">🛒</div><div class="number" id="stat-total-ventas-hoy">0</div><div class="label">Ventas Hoy</div></div>
             <div class="stat-card"><div class="icon">📊</div><div class="number" id="stat-promedio-venta">Bs 0.00</div><div class="label">Promedio por Venta</div></div>
         </div>
-        <div class="charts-row">
-            <div class="chart-box"><h3>📊 Ventas por Semana</h3><canvas id="chart-semanas"></canvas></div>
-            <div class="chart-box"><h3>🎯 Productos Más Vendidos</h3><canvas id="chart-productos"></canvas></div>
-        </div>
-        <div class="charts-row">
-            <div class="chart-box"><h3>📈 Evolución de Ventas</h3><canvas id="chart-evolucion"></canvas></div>
-            <div class="chart-box"><h3>🍩 Distribución por Producto</h3><canvas id="chart-donut"></canvas></div>
+        <style>
+            .gc-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:18px; margin-top:4px; }
+            @media (max-width:760px) { .gc-grid { grid-template-columns:1fr; } }
+            .gc-card { background:#161922; border:1px solid #222736; border-radius:16px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.35); min-width:0; }
+            .gc-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+            .gc-title { display:flex; align-items:center; gap:10px; font-weight:600; color:#fff; font-size:15px; }
+            .gc-ico { width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:15px; }
+            .gc-sel { background:#222736; color:#cbd5e1; border:1px solid #2d3445; border-radius:8px; padding:5px 8px; font-size:12px; }
+            .gc-badge { background:#222736; color:#94a3b8; font-size:11px; padding:4px 10px; border-radius:8px; }
+            .gc-body { position:relative; height:260px; }
+            .gc-detalle { margin-top:12px; font-size:12px; color:#94a3b8; background:#0f1117; border:1px solid #222736; border-radius:10px; padding:10px 12px; max-height:170px; overflow:auto; }
+        </style>
+        <div class="gc-grid">
+            <div class="gc-card">
+                <div class="gc-head">
+                    <div class="gc-title"><span class="gc-ico" style="background:rgba(249,115,22,.12);">📊</span>Ventas por Día</div>
+                    <select class="gc-sel" id="sel-semanas" onchange="actualizarChartSemanas()"><option value="todo" selected>Todo el tiempo</option><option value="30">Últimos 30 días</option></select></select></select></select></select>
+                </div>
+                <div class="gc-body" id="body-dias"><canvas id="chart-semanas"></canvas></div>
+                <div class="gc-detalle" id="det-chart-semanas">👆 Tocá una barra para ver las ventas de esa semana.</div>
+            </div>
+            <div class="gc-card">
+                <div class="gc-head">
+                    <div class="gc-title"><span class="gc-ico" style="background:rgba(16,185,129,.12);">🎯</span>Productos Más Vendidos</div>
+                    <span class="gc-badge">Top 5 · unidades</span>
+                </div>
+                <div class="gc-body" id="body-productos"><canvas id="chart-productos"></canvas></div>
+                <div class="gc-detalle" id="det-chart-productos">👆 Tocá una barra para ver las ventas de ese producto.</div>
+            </div>
+            <div class="gc-card">
+                <div class="gc-head">
+                    <div class="gc-title"><span class="gc-ico" style="background:rgba(59,130,246,.12);">📈</span>Ventas por Mes</div>
+                    <select class="gc-sel" id="sel-meses" onchange="actualizarChartMeses()"><option value="todo" selected>Todo el tiempo</option><option value="3">Últimos 3 meses</option></select></select></select></select></select>
+                </div>
+                <div class="gc-body"><canvas id="chart-evolucion"></canvas></div>
+                <div class="gc-detalle" id="det-chart-evolucion">👆 Tocá un punto para ver las ventas de ese mes.</div>
+            </div>
+            <div class="gc-card">
+                <div class="gc-head">
+                    <div class="gc-title"><span class="gc-ico" style="background:rgba(168,85,247,.12);">🍩</span>Stock por Drop</div>
+                    <select class="gc-sel" id="sel-donut" onchange="actualizarChartDona()"></select>
+                </div>
+                <div class="gc-body" style="height:360px;"><canvas id="chart-donut"></canvas></div>
+                <div class="gc-detalle" id="det-chart-donut"></div>
+            </div>
         </div>
     </div>
 
-    <!-- PRODUCTOS (INVENTARIO) -->
+    <!-- PRODUCTOS (INVENTARIO) -->    <!-- PRODUCTOS (INVENTARIO) -->
     <div id="seccion-productos" class="seccion">
         <div class="card">
             <h2>📦 Inventario</h2>
@@ -2371,6 +2420,17 @@
         </div>
     </div>
 
+    <div id="seccion-logros" class="seccion">
+        <div class="card">
+            <div class="pedido-header">
+                <h2>🏆 Logros y Metas</h2>
+                <button class="btn btn-azul" onclick="abrirModalNuevaMeta()">➕ Nueva meta</button>
+            </div>
+            <p style="color:#666; font-size:11px; margin:0 0 15px;">ℹ️ Las metas se miden con el capital actual en dólares. Cuando se cumplen se marcan solas con la fecha.</p>
+            <div id="lista-logros"></div>
+        </div>
+    </div>
+
     <div id="seccion-cotizacion" class="seccion">
         <style>
             .cot-tabs { display:flex; gap:10px; justify-content:center; margin:0 auto 20px; max-width:420px; }
@@ -2465,6 +2525,24 @@
             <p style="color:#888;font-size:12px;margin-bottom:12px;">Solo aparecen las compras del mismo cliente.</p>
             <div id="lista-adjuntar-venta" class="eliminar-lista"></div>
             <button class="btn btn-secondary" style="width:100%;margin-top:15px;" onclick="cerrarModalAdjuntarVenta()">✕ Cerrar</button>
+        </div>
+    </div>
+
+    <div class="modal-cargar-pedidos" id="modalNuevaMeta" onclick="if(event.target===this) cerrarModalNuevaMeta()">
+        <div class="contenido">
+            <h2>🎯 Nueva meta</h2>
+            <div class="campo">
+                <label>🏷️ Nombre</label>
+                <input type="text" id="meta-nombre-input" placeholder="Ej: Llegar a 500 $">
+            </div>
+            <div class="campo">
+                <label>💵 Meta en dólares</label>
+                <input type="number" id="meta-valor-input" step="0.01" min="0" placeholder="Ej: 500">
+            </div>
+            <div style="display:flex;gap:10px;margin-top:15px;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="cerrarModalNuevaMeta()">✕ Cancelar</button>
+                <button class="btn btn-verde" style="flex:1;" onclick="guardarNuevaMeta()">💾 Guardar</button>
+            </div>
         </div>
     </div>
 
@@ -3361,7 +3439,7 @@ function renderizarEstimados() {
             accionHtml = btn('🇧🇴 Llegó a Bolivia', `abrirModalEtapa('${e.id}','llegoBolivia')`, 'btn-verde');
         } else if (st === 'llego') {
             icono = '🇨🇱';
-            estadoHtml = badge(`🇨🇱 En Chile · ${calcularDiasDesde(e.timestampLlegada)} día(s) desde Correos`, 'badge-estado badge-cargado');
+            estadoHtml = badge(`📬 En Correos Chile · ${calcularDiasDesde(e.timestampLlegada)} día(s) esperando la recepción internacional`, 'badge-estado badge-cargado');
             accionHtml = btn('📥 Recibido en Chile', `abrirModalEtapa('${e.id}','recibidoChile')`, 'btn-verde');
         } else if (st === 'llegoChile') {
             icono = '🇨🇱';
@@ -4008,6 +4086,7 @@ function navegarA(seccion) {
         ventas: '💰 Ventas', 
         estimado: '⏳ Estimado de Llegada',
         cotizacion: '💲 Cotización',
+        logros: '🏆 Logros y Metas',
         pedidos: '📦 Productos a Pedido',
         cargar: '📋 Cargar Pedidos',
         historial: '📜 Historial', 
@@ -4025,6 +4104,7 @@ function navegarA(seccion) {
     if (seccion === 'configuracion') cargarConfiguracion();
     if (seccion === 'pedidos') renderizarPedidos();
     if (seccion === 'cotizacion') renderizarCotizacion();
+    if (seccion === 'logros') renderizarLogros();
     if (seccion === 'cargar') renderizarCargarPedidos();
     if (seccion === 'historial') renderizarHistorial();
     if (seccion === 'productos') renderizarProductos();
@@ -6537,75 +6617,457 @@ function actualizarDashboard() {
     document.getElementById('total-ventas-header').textContent = formatMoney(totalVentas);
     document.getElementById('total-productos-header').textContent = productosActivos;
     document.getElementById('total-drops-header').textContent = (estado.drops || []).length;
+    evaluarMetas();
+    renderCapitalDashboard();
     actualizarGraficos();
 }
-function actualizarGraficos() {
-    const ventasParaGraficos = estado.ventas.filter(v => {
-        const p = estado.productos.find(pr => pr.id === v.productoId);
-        return !(p && p.esVentaRapida);
-    });
-    const semanas = []; const ventasSemana = [];
-    for (let i = 3; i >= 0; i--) {
-        const fecha = new Date(); fecha.setDate(fecha.getDate() - (i * 7));
-        semanas.push(`Sem ${i+1}`);
-        const total = ventasParaGraficos.filter(v => {
-            const vFecha = new Date(v.fecha);
-            const diff = Math.floor((fecha - vFecha) / (1000 * 60 * 60 * 24));
-            return diff >= 0 && diff < 7;
-        }).reduce((s, v) => s + v.total, 0);
-        ventasSemana.push(total);
+// =============================================
+// CAPITAL EN DÓLARES
+// =============================================
+function capitalActualBs() {
+    // Capital del último drop con inversión: lo invertido, o lo que ya vendiste si ya lo superó
+    const drops = (estado.drops || []).slice().sort((a, b) => (b.numero || 0) - (a.numero || 0));
+    for (const d of drops) {
+        const st = calcularStatsDrop(d);
+        if (st.capitalTotal > 0) return Math.max(st.capitalTotal, st.ingresos);
     }
-    crearGrafico('chart-semanas', 'bar', semanas, ventasSemana, '#ff8800');
-    const prodVentas = {};
-    ventasParaGraficos.forEach(v => { prodVentas[v.productoNombre] = (prodVentas[v.productoNombre] || 0) + 1; });
-    const topProd = Object.entries(prodVentas).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    crearGrafico('chart-productos', 'bar', topProd.map(p => p[0]), topProd.map(p => p[1]), '#00cc66');
-    const dias = []; const ventasDia = [];
-    for (let i = 6; i >= 0; i--) {
-        const fecha = new Date(); fecha.setDate(fecha.getDate() - i);
-        const dia = fecha.toLocaleDateString('es', { weekday: 'short' });
-        dias.push(dia);
-        const total = ventasParaGraficos.filter(v => {
-            const vFecha = new Date(v.fecha);
-            return vFecha.toLocaleDateString() === fecha.toLocaleDateString();
-        }).reduce((s, v) => s + v.total, 0);
-        ventasDia.push(total);
-    }
-    crearGrafico('chart-evolucion', 'line', dias, ventasDia, '#007AFF');
-    const donutData = {};
-    ventasParaGraficos.forEach(v => { donutData[v.productoNombre] = (donutData[v.productoNombre] || 0) + v.total; });
-    const topDonut = Object.entries(donutData).sort((a, b) => b[1] - a[1]).slice(0, 6);
-    const colores = ['#ff8800', '#ff6b00', '#ffaa00', '#ffcc00', '#ff4400', '#ff2200'];
-    crearGrafico('chart-donut', 'doughnut', topDonut.map(p => p[0]), topDonut.map(p => p[1]), colores.slice(0, topDonut.length));
+    return 0;
 }
-function crearGrafico(id, tipo, labels, data, color) {
+
+function capitalActualUsd() {
+    const tasa = getCotizacionConfig().tasaBs || 12;
+    return capitalActualBs() / tasa;
+}
+
+function renderCapitalDashboard() {
+    const bs = capitalActualBs();
+    const usd = capitalActualUsd();
+    const enBs = !!(estado.config && estado.config.capitalEnBs);
+    document.getElementById('capital-valor').textContent = enBs ? formatMoney(bs) : '$ ' + usd.toFixed(2);
+    document.getElementById('capital-secundario').textContent = enBs ? '≈ $ ' + usd.toFixed(2) : '≈ ' + formatMoney(bs);
+    document.getElementById('capital-boton').textContent = enBs ? '🔁 Ver en $' : '🔁 Ver en Bs';
+}
+
+function toggleMonedaCapital() {
+    estado.config.capitalEnBs = !estado.config.capitalEnBs;
+    guardarEstado();
+    renderCapitalDashboard();
+}
+
+// =============================================
+// LOGROS / METAS
+// =============================================
+function evaluarMetas() {
+    let cambio = false;
+    if (!estado.metas) {
+        estado.metas = [
+            { id: generarId(), nombre: 'Aumentar el capital a 100 $', valor: 100, cumplida: false, fechaCumplida: null },
+            { id: generarId(), nombre: 'Llegar a 1000 $ de capital', valor: 1000, cumplida: false, fechaCumplida: null }
+        ];
+        cambio = true;
+    }
+    const usd = capitalActualUsd();
+    estado.metas.forEach(m => {
+        if (!m.cumplida && usd >= m.valor) {
+            m.cumplida = true;
+            m.fechaCumplida = Date.now();
+            m.capitalAlCumplir = usd;
+            cambio = true;
+        }
+    });
+    if (cambio) guardarEstado();
+}
+
+function renderizarLogros() {
+    evaluarMetas();
+    const cont = document.getElementById('lista-logros');
+    const usd = capitalActualUsd();
+    const metas = estado.metas || [];
+    if (metas.length === 0) {
+        cont.innerHTML = `<div class="empty"><p>Todavía no hay metas. Tocá "➕ Nueva meta".</p></div>`;
+        return;
+    }
+    const pendientes = metas.filter(m => !m.cumplida).sort((a, b) => a.valor - b.valor);
+    const cumplidas = metas.filter(m => m.cumplida).sort((a, b) => (b.fechaCumplida || 0) - (a.fechaCumplida || 0));
+    const titulo = (t) => `<div style="font-weight:bold;color:#ff8800;margin:15px 0 8px;">${t}</div>`;
+
+    const pendHtml = pendientes.map(m => {
+        const pct = Math.max(0, Math.min(100, usd / m.valor * 100));
+        return `<div class="eliminar-item" style="flex-direction:column;align-items:stretch;">
+            <div style="display:flex;justify-content:space-between;gap:10px;"><b>🎯 ${m.nombre}</b><span style="color:#ffaa00;">$ ${m.valor}</span></div>
+            <div style="background:#222;border-radius:8px;height:10px;margin:10px 0 6px;overflow:hidden;"><div style="height:10px;background:#ff8800;width:${pct.toFixed(1)}%;"></div></div>
+            <div style="font-size:12px;color:#aaa;">Vamos $ ${usd.toFixed(2)} · Faltan $ ${Math.max(0, m.valor - usd).toFixed(2)} (${pct.toFixed(0)}%)</div>
+            <div style="text-align:right;margin-top:6px;"><button class="btn btn-danger" style="padding:4px 10px;font-size:11px;" onclick="eliminarMeta('${m.id}')">🗑️ Quitar</button></div>
+        </div>`;
+    }).join('');
+
+    const cumpHtml = cumplidas.map(m => `<div class="eliminar-item" style="flex-direction:column;align-items:stretch;">
+        <div style="display:flex;justify-content:space-between;gap:10px;"><b>✅ ${m.nombre}</b><span style="color:#00ff88;">$ ${m.valor}</span></div>
+        <div style="font-size:12px;color:#aaa;margin-top:6px;">📅 Cumplida el ${new Date(m.fechaCumplida).toLocaleDateString()} · $ ${(m.capitalAlCumplir || 0).toFixed(2)} en ese momento</div>
+        <div style="text-align:right;margin-top:6px;"><button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" onclick="editarFechaMeta('${m.id}')">✏️ Cambiar fecha</button></div>
+    </div>`).join('');
+
+    cont.innerHTML = (pendHtml ? titulo('🎯 Faltan cumplir') + pendHtml : '') + (cumpHtml ? titulo('🏆 Cumplidas') + cumpHtml : '');
+}
+
+function abrirModalNuevaMeta() {
+    document.getElementById('meta-nombre-input').value = '';
+    document.getElementById('meta-valor-input').value = '';
+    document.getElementById('modalNuevaMeta').classList.add('active');
+}
+
+function cerrarModalNuevaMeta() {
+    document.getElementById('modalNuevaMeta').classList.remove('active');
+}
+
+function guardarNuevaMeta() {
+    evaluarMetas();
+    const nombre = document.getElementById('meta-nombre-input').value.trim();
+    const valor = parseFloat(document.getElementById('meta-valor-input').value);
+    if (!nombre) { notify('❌ Escribí el nombre de la meta', 'error'); return; }
+    if (!(valor > 0)) { notify('❌ La meta tiene que ser mayor a 0', 'error'); return; }
+    if (!estado.metas) estado.metas = [];
+    estado.metas.push({ id: generarId(), nombre: nombre, valor: valor, cumplida: false, fechaCumplida: null });
+    guardarEstado();
+    cerrarModalNuevaMeta();
+    renderizarLogros();
+    notify('🎯 Meta creada', 'success');
+}
+
+function eliminarMeta(id) {
+    const m = (estado.metas || []).find(x => x.id === id);
+    if (!m || !confirm(`¿Quitar la meta "${m.nombre}"?`)) return;
+    estado.metas = estado.metas.filter(x => x.id !== id);
+    guardarEstado();
+    renderizarLogros();
+}
+
+function editarFechaMeta(id) {
+    const m = (estado.metas || []).find(x => x.id === id);
+    if (!m) return;
+    const actual = new Date(m.fechaCumplida);
+    const pad = n => String(n).padStart(2, '0');
+    const txt = prompt('Fecha en que se cumplió (AAAA-MM-DD):', `${actual.getFullYear()}-${pad(actual.getMonth() + 1)}-${pad(actual.getDate())}`);
+    if (!txt) return;
+    const p = txt.split('-').map(Number);
+    if (p.length !== 3 || p.some(n => isNaN(n))) { notify('❌ Formato inválido, usá AAAA-MM-DD', 'error'); return; }
+    m.fechaCumplida = new Date(p[0], p[1] - 1, p[2], 12, 0, 0).getTime();
+    guardarEstado();
+    renderizarLogros();
+}
+
+// =============================================
+// GRÁFICOS DEL DASHBOARD (datos reales)
+// =============================================
+const DIA_MS = 86400000;
+let detallesGraficos = {};
+
+// Hora de una venta: usa el timestamp; si falta, la saca de la fecha escrita (d/m/aaaa)
+function tsVenta(v) {
+    if (v.timestamp && v.timestamp > 946684800000) return v.timestamp;
+    const p = (v.fecha || '').split('/').map(Number);
+    if (p.length === 3 && p[2] > 2000) return new Date(p[2], p[1] - 1, p[0], 12, 0, 0).getTime();
+    return null;
+}
+
+// Ventas normales con su hora (sin ventas rápidas)
+function ventasConTiempo() {
+    return estado.ventas
+        .map(v => ({ v: v, t: tsVenta(v) }))
+        .filter(x => x.t && !((estado.productos.find(pr => pr.id === x.v.productoId) || {}).esVentaRapida));
+}
+
+function formatoCorto(v) {
+    return v >= 1000 ? 'Bs ' + (v / 1000).toFixed(1) + 'k' : 'Bs ' + Math.round(v);
+}
+
+// Lista de ventas para el detalle: muestra fecha/hora real y avisa si la fecha guardada no coincide
+function lineasDetalle(lista) {
+    if (!lista.length) return '<span style="color:#64748b;">No hay ventas en esta parte del gráfico.</span>';
+    return lista.slice().sort((a, b) => a.t - b.t).map(x => {
+        const v = x.v;
+        const hora = new Date(x.t).toLocaleString('es', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const coincide = !v.fecha || new Date(x.t).toLocaleDateString() === v.fecha;
+        const aviso = coincide ? '' : ` <span style="color:#f59e0b;">⚠️ la fecha guardada dice ${v.fecha}</span>`;
+        return `<div style="padding:5px 0;border-bottom:1px solid #1e2330;">🗓️ ${hora} · <b style="color:#e2e8f0;">${v.productoNombre}</b>${v.cantidad > 1 ? ' x' + v.cantidad : ''} · ${v.cliente} · ${formatMoney(v.total || 0)}${aviso}</div>`;
+    }).join('');
+}
+
+function inicioDia(t) {
+    const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime();
+}
+
+function fechaExacta(ms) {
+    const d = new Date(ms);
+    return `${d.getDate()} ${d.toLocaleDateString('es', { month: 'short' })} ${d.getFullYear()}`;
+}
+
+// Días desde la primera venta (o últimos 30) hasta hoy, uno por día
+function rangoDias(sel, ventas) {
+    const hoyMs = inicioDia(Date.now());
+    const desde = sel === '30'
+        ? inicioDia(hoyMs - 29 * DIA_MS)
+        : (ventas.length ? inicioDia(Math.min(...ventas.map(x => x.t))) : hoyMs);
+    const dias = [];
+    const d = new Date(desde);
+    while (d.getTime() <= hoyMs) { dias.push(d.getTime()); d.setDate(d.getDate() + 1); }
+    return dias;
+}
+
+const DETALLE_DEFECTO = {
+    'chart-semanas': '👆 Tocá una barra para ver las ventas de ese día.',
+    'chart-productos': '👆 Tocá una barra para ver las ventas de ese producto.',
+    'chart-evolucion': '👆 Tocá un punto para ver las ventas de ese mes.',
+    'chart-donut': ''
+};
+
+function resetearDetalle(id) {
+    const el = document.getElementById('det-' + id);
+    if (el) el.innerHTML = DETALLE_DEFECTO[id];
+}
+
+function resetearDetalles() {
+    Object.keys(DETALLE_DEFECTO).forEach(resetearDetalle);
+}
+
+// Gráfico 1: ventas por semana (lunes a domingo)
+// Días del gráfico por día: con "Últimos 30 días" muestra los 30 días completos;
+// con "Todo el tiempo" muestra los días con ventas y, si hay menos de 7, agrega los días siguientes
+function diasDeGrafico(sel, ventas) {
+    const hoyMs = inicioDia(Date.now());
+    if (sel === '30') {
+        const dias = [];
+        const d = new Date(hoyMs - 29 * DIA_MS);
+        while (d.getTime() <= hoyMs) { dias.push(d.getTime()); d.setDate(d.getDate() + 1); }
+        return dias;
+    }
+    // Todo el tiempo: todos los días seguidos desde la primera venta hasta la última
+    const primero = ventas.length ? inicioDia(Math.min(...ventas.map(x => x.t))) : hoyMs;
+    const ultimo = ventas.length ? inicioDia(Math.max(...ventas.map(x => x.t))) : hoyMs;
+    const dias = [];
+    const d = new Date(primero);
+    while (d.getTime() <= ultimo) { dias.push(d.getTime()); d.setDate(d.getDate() + 1); }
+    // Si hay menos de 7 días, agrego días siguientes para que las barras queden a la izquierda
+    while (dias.length < 7) { dias.push(d.getTime()); d.setDate(d.getDate() + 1); }
+    return dias;
+}
+
+// Gráfico 1: ventas por día, con fecha exacta en cada barra
+function actualizarChartSemanas() {
+    resetearDetalle('chart-semanas');
+    const ventas = ventasConTiempo();
+    const sel = (document.getElementById('sel-semanas') || {}).value || 'todo';
+    const dias = diasDeGrafico(sel, ventas);
+    const grupos = dias.map(d => ventas.filter(x => inicioDia(x.t) === d));
+    detallesGraficos['chart-semanas'] = grupos;
+    crearGrafico('chart-semanas', 'bar', dias.map(fechaExacta),
+        grupos.map(g => g.reduce((s, x) => s + (x.v.total || 0), 0)), '#f97316', 'Ventas (Bs)');
+}
+
+// Gráfico 2: productos más vendidos
+function actualizarChartProductos() {
+    const ventas = ventasConTiempo();
+    const prod = {};
+    ventas.forEach(x => {
+        const n = x.v.productoNombre;
+        if (!prod[n]) prod[n] = { unid: 0, ingreso: 0 };
+        prod[n].unid += (x.v.cantidad || 1);
+        prod[n].ingreso += (x.v.total || 0);
+    });
+    const topProd = Object.entries(prod).sort((a, b) => b[1].unid - a[1].unid).slice(0, 5);
+    detallesGraficos['chart-productos'] = topProd.map(p => ventas.filter(x => x.v.productoNombre === p[0]));
+    const paleta = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'];
+    const cuerpoProd = document.getElementById('body-productos');
+    if (cuerpoProd) cuerpoProd.style.height = Math.max(1, topProd.length) * 56 + 30 + 'px';
+    crearGrafico('chart-productos', 'bar', topProd.map(p => p[0]), topProd.map(p => p[1].unid), paleta.slice(0, topProd.length), 'Unidades vendidas', {
+        horizontal: true,
+        esUnidades: true,
+        detalles: topProd.map(p => `${p[1].unid} unidad(es) · ${formatMoney(p[1].ingreso)}`)
+    });
+}
+
+// Detalle del mes: total cobrado y productos vendidos ese mes
+function resumenMes(grupo) {
+    const total = grupo.reduce((s, x) => s + (x.v.total || 0), 0);
+    const prod = {};
+    grupo.forEach(x => {
+        const n = x.v.productoNombre;
+        if (!prod[n]) prod[n] = { unid: 0, ingreso: 0 };
+        prod[n].unid += (x.v.cantidad || 1);
+        prod[n].ingreso += (x.v.total || 0);
+    });
+    const filas = Object.entries(prod).sort((a, b) => b[1].ingreso - a[1].ingreso).map(([n, p]) =>
+        `<div style="padding:5px 0;border-bottom:1px solid #1e2330;"><b style="color:#e2e8f0;">${n}</b> · ${p.unid} unid. · ${formatMoney(p.ingreso)}</div>`
+    ).join('');
+    return `<div style="padding:5px 0;color:#e2e8f0;">Total obtenido: <b>${formatMoney(total)}</b></div>` + filas;
+}
+
+// Gráfico 3: ventas por mes (suma de ventas de cada mes, desde el primer mes con ventas)
+function actualizarChartMeses() {
+    resetearDetalle('chart-evolucion');
+    const ventas = ventasConTiempo();
+    const sel = (document.getElementById('sel-meses') || {}).value || 'todo';
+    const hoy = new Date();
+    const mesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    let desde = mesActual;
+    if (sel === '3') {
+        desde = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1);
+    } else if (ventas.length) {
+        const primera = new Date(Math.min(...ventas.map(x => x.t)));
+        desde = new Date(primera.getFullYear(), primera.getMonth(), 1);
+    }
+    const meses = [];
+    const m = new Date(desde);
+    while (m.getTime() <= mesActual.getTime()) { meses.push(new Date(m)); m.setMonth(m.getMonth() + 1); }
+    const grupos = meses.map(ref => ventas.filter(x => {
+        const d = new Date(x.t);
+        return d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth();
+    }));
+    const valores = grupos.map(g => g.reduce((s, x) => s + (x.v.total || 0), 0));
+    const primeraVenta = ventas.length ? new Date(Math.min(...ventas.map(x => x.t))) : null;
+    const etiquetas = meses.map((ref, i) => {
+        if (i === 0 && sel === 'todo' && primeraVenta) {
+            return `${primeraVenta.getDate()} de ${primeraVenta.toLocaleDateString('es', { month: 'long' })} de ${primeraVenta.getFullYear()}`;
+        }
+        return `${ref.toLocaleDateString('es', { month: 'long' })} de ${ref.getFullYear()}`;
+    });
+    detallesGraficos['chart-evolucion'] = grupos;
+    crearGrafico('chart-evolucion', 'line', etiquetas, valores, '#3b82f6', 'Ventas (Bs)', { detalleFn: resumenMes });
+}
+
+// Gráfico 4: stock traído de cada producto en el drop elegido (stock actual + lo vendido)
+function actualizarChartDona() {
+    resetearDetalle('chart-donut');
+    const selEl = document.getElementById('sel-donut');
+    const drops = (estado.drops || []).slice().sort((a, b) => (a.numero || 0) - (b.numero || 0));
+    if (selEl) {
+        const actual = selEl.value;
+        selEl.innerHTML = drops.map(d => `<option value="${d.id}">${d.nombre}</option>`).join('');
+        if (drops.some(d => d.id === actual)) selEl.value = actual;
+    }
+    const drop = drops.find(d => d.id === (selEl ? selEl.value : '')) || drops[0];
+    const items = drop ? (drop.productos || []).map(p => {
+        const pr = estado.productos.find(x => x.id === p.ref);
+        if (!pr) return null;
+        const vendidos = estado.ventas.filter(v => v.productoId === pr.id);
+        const unidades = vendidos.reduce((s, v) => s + (v.cantidad || 1), 0);
+        const stockActual = Number(pr.stock) || 0;
+        return {
+            nombre: pr.nombre,
+            traido: stockActual + unidades,
+            stockActual: stockActual,
+            unidades: unidades,
+            ingreso: vendidos.reduce((s, v) => s + (v.total || 0), 0)
+        };
+    }).filter(x => x && x.traido > 0) : [];
+    detallesGraficos['chart-donut'] = items;
+    const colores = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#eab308', '#ec4899', '#14b8a6', '#f43f5e'];
+    crearGrafico('chart-donut', 'doughnut', items.map(i => i.nombre), items.map(i => i.traido),
+        items.map((_, i) => colores[i % colores.length]), 'Stock traído', {
+        detalles: items.map(i => `${i.traido} unid. traídas`),
+        detalleFn: i => `<div style="padding:5px 0;color:#e2e8f0;">Stock traído: <b>${i.traido} unid.</b></div><div style="padding:5px 0;">Vendidas: ${i.unidades} unid. · ${formatMoney(i.ingreso)}</div><div style="padding:5px 0;">Stock actual: ${i.stockActual} unid.</div>`
+    });
+}
+
+function actualizarGraficos() {
+    resetearDetalles();
+    actualizarChartSemanas();
+    actualizarChartProductos();
+    actualizarChartMeses();
+    actualizarChartDona();
+}
+
+function crearGrafico(id, tipo, labels, data, color, etiqueta, extra) {
+    extra = extra || {};
     const canvas = document.getElementById(id);
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
     if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+    const ctx = canvas.getContext('2d');
+    const hayDatos = data.some(x => x > 0);
+    const esDona = tipo === 'doughnut';
+    const esLinea = tipo === 'line';
+    let fondo = color;
+    if (!hayDatos) fondo = '#333';
+    else if (esLinea) {
+        const g = ctx.createLinearGradient(0, 0, 0, canvas.parentElement.clientHeight || 260);
+        g.addColorStop(0, 'rgba(59, 130, 246, 0.4)');
+        g.addColorStop(1, 'rgba(59, 130, 246, 0)');
+        fondo = g;
+    }
+    const valor = extra.horizontal ? 'x' : 'y';
+    const categoria = extra.horizontal ? 'y' : 'x';
+    const detalleEl = () => document.getElementById('det-' + id);
+
     const config = {
         type: tipo,
         data: {
-            labels: labels.length ? labels : ['Sin datos'],
+            labels: hayDatos ? labels : ['Sin ventas todavía'],
             datasets: [{
-                label: tipo === 'doughnut' ? 'Ventas' : 'Monto',
-                data: labels.length ? data : [0],
-                backgroundColor: typeof color === 'string' ? color : (color || '#ff8800'),
-                borderColor: '#0d0d0f',
-                borderWidth: 2,
+                label: etiqueta,
+                data: hayDatos ? data : [0],
+                backgroundColor: fondo,
+                borderColor: esLinea ? '#3b82f6' : (esDona ? '#161922' : 'transparent'),
+                borderWidth: esDona ? 2 : (esLinea ? 3 : 0),
+                fill: esLinea,
+                tension: 0.35,
+                pointBackgroundColor: '#3b82f6',
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                pointRadius: esLinea ? (labels.length <= 31 ? 4 : 0) : 0,
+                pointHoverRadius: 7,
                 borderRadius: tipo === 'bar' ? 6 : 0,
-                maxBarThickness: 28,
-                barPercentage: 0.5,
-                categoryPercentage: 0.6
+                barThickness: 'flex',
+                maxBarThickness: 40,
+                hoverOffset: esDona ? 6 : 0
             }]
         },
         options: {
-            responsive: true, maintainAspectRatio: true,
-            plugins: { legend: { labels: { color: '#aaa', font: { size: 11 } } } },
-            scales: tipo !== 'doughnut' ? {
-                y: { ticks: { color: '#888', font: { size: 10 } }, grid: { color: '#222' } },
-                x: { ticks: { color: '#888', font: { size: 10 } }, grid: { display: false } }
-            } : {}
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: extra.horizontal ? 'y' : 'x',
+            cutout: esDona ? '70%' : undefined,
+            interaction: { mode: 'nearest', intersect: false },
+            onClick: (evt, els) => {
+                if (!els.length || !hayDatos) return;
+                const i = els[0].index;
+                const cont = detalleEl();
+                const grupo = (detallesGraficos[id] || [])[i] || [];
+                if (cont) cont.innerHTML = `<div style="font-weight:600;color:#e2e8f0;margin-bottom:6px;">${extra.encabezados ? extra.encabezados[i] : labels[i]}</div>` + (extra.detalleFn ? extra.detalleFn(grupo) : lineasDetalle(grupo));
+            },
+            plugins: {
+                legend: { display: esDona, position: 'bottom', labels: { color: '#cbd5e1', boxWidth: 12, padding: 28 } },
+                tooltip: {
+                    enabled: hayDatos,
+                    backgroundColor: '#161922',
+                    titleColor: '#ffffff',
+                    bodyColor: '#cbd5e1',
+                    borderColor: '#334155',
+                    borderWidth: 1,
+                    padding: 10,
+                    callbacks: {
+                        label: c => {
+                            if (extra.detalles) return extra.detalles[c.dataIndex];
+                            if (esDona) {
+                                const total = c.dataset.data.reduce((s, x) => s + x, 0);
+                                const pct = total ? (c.parsed / total * 100).toFixed(1) : 0;
+                                return `${formatMoney(c.parsed)} (${pct}%)`;
+                            }
+                            return formatMoney(extra.horizontal ? c.parsed.x : c.parsed.y);
+                        }
+                    }
+                }
+            },
+            scales: esDona ? {} : {
+                [valor]: {
+                    beginAtZero: true,
+                    grid: { color: '#222736' },
+                    ticks: { color: '#94a3b8', font: { size: 11 }, callback: v => extra.esUnidades ? v : formatoCorto(v) }
+                },
+                [categoria]: {
+                    grid: { display: false },
+                    ticks: { color: '#94a3b8', font: { size: 11 }, maxRotation: 45, autoSkip: !extra.horizontal && labels.length > 8 }
+                }
+            }
         }
     };
     charts[id] = new Chart(ctx, config);
