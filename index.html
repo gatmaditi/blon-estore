@@ -6823,7 +6823,7 @@ const DETALLE_DEFECTO = {
 
 function resetearDetalle(id) {
     const el = document.getElementById('det-' + id);
-    if (el) el.innerHTML = DETALLE_DEFECTO[id];
+    if (el) { el.innerHTML = DETALLE_DEFECTO[id]; el.dataset.idx = ''; }
 }
 
 function resetearDetalles() {
@@ -6960,12 +6960,14 @@ function actualizarChartDona() {
             ingreso: vendidos.reduce((s, v) => s + (v.total || 0), 0)
         };
     }).filter(x => x && x.traido > 0) : [];
+    const totalTraido = items.reduce((s, i) => s + i.traido, 0);
+    items.forEach(i => { i.pct = totalTraido ? (i.traido / totalTraido * 100).toFixed(1) : '0.0'; });
     detallesGraficos['chart-donut'] = items;
     const colores = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#eab308', '#ec4899', '#14b8a6', '#f43f5e'];
-    crearGrafico('chart-donut', 'doughnut', items.map(i => i.nombre), items.map(i => i.traido),
+    crearGrafico('chart-donut', 'doughnut', items.map(i => `${i.nombre} · ${i.pct}%`), items.map(i => i.traido),
         items.map((_, i) => colores[i % colores.length]), 'Stock traído', {
-        detalles: items.map(i => `${i.traido} unid. traídas`),
-        detalleFn: i => `<div style="padding:5px 0;color:#e2e8f0;">Stock traído: <b>${i.traido} unid.</b></div><div style="padding:5px 0;">Vendidas: ${i.unidades} unid. · ${formatMoney(i.ingreso)}</div><div style="padding:5px 0;">Stock actual: ${i.stockActual} unid.</div>`
+        detalles: items.map(i => `${i.traido} unid. traídas · ${i.pct}% del drop`),
+        detalleFn: i => `<div style="padding:5px 0;color:#e2e8f0;">Stock traído: <b>${i.traido} unid.</b> (${i.pct}% del drop)</div><div style="padding:5px 0;">Vendidas: ${i.unidades} unid. · ${formatMoney(i.ingreso)}</div><div style="padding:5px 0;">Stock actual: ${i.stockActual} unid.</div>`
     });
 }
 
@@ -7031,6 +7033,8 @@ function crearGrafico(id, tipo, labels, data, color, etiqueta, extra) {
                 if (!els.length || !hayDatos) return;
                 const i = els[0].index;
                 const cont = detalleEl();
+                if (cont && cont.dataset.idx === String(i)) { resetearDetalle(id); return; }
+                if (cont) cont.dataset.idx = String(i);
                 const grupo = (detallesGraficos[id] || [])[i] || [];
                 if (cont) cont.innerHTML = `<div style="font-weight:600;color:#e2e8f0;margin-bottom:6px;">${extra.encabezados ? extra.encabezados[i] : labels[i]}</div>` + (extra.detalleFn ? extra.detalleFn(grupo) : lineasDetalle(grupo));
             },
