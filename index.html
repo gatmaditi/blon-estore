@@ -2819,6 +2819,9 @@ function programarGuardadoEnNube() {
 }
 async function guardarEnNube() {
     if (!supabaseClient) return;
+    // Protección: nunca guardar en la nube una tienda vacía (evita borrar datos por error)
+    const tiendaVacia = !(estado.productos || []).length && !(estado.ventas || []).length && !(estado.clientes || []).length;
+    if (tiendaVacia) { console.warn('Guardado en la nube omitido: la tienda está vacía'); return; }
     try {
         await supabaseClient.from('estado_tienda').upsert({ id: ESTADO_ID, data: estado, updated_at: new Date().toISOString() });
     } catch (e) { console.error('Error guardando en la nube:', e); }
