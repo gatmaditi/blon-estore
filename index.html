@@ -3372,6 +3372,7 @@ function crearEstimadoDesdeDrop(dropId) {
 function estadoEstimadoActual(e) {
     if (e.recogido) return 'recogido';
     if (e.llegoBolivia) return 'llegoBolivia';
+    if (e.confirmado) return 'confirmado';
     if (e.recibidoChile) return 'recibidoChile';
     if (e.llego) return 'llego';
     if (e.llegoChile) return 'llegoChile';
@@ -3440,10 +3441,14 @@ function renderizarEstimados() {
             icono = '🇧🇴';
             estadoHtml = badge(`🇧🇴 En Bolivia · ${calcularDiasDesde(e.timestampLlegoBolivia)} día(s) esperando`, 'badge-estado badge-cargado');
             accionHtml = btn('✅ Recogido en Bolivia', `abrirModalRecogido('${e.id}')`, 'btn-verde');
-        } else if (st === 'recibidoChile') {
+        } else if (st === 'confirmado') {
             icono = '🚚';
-            estadoHtml = badge(`🚚 Camino a Bolivia · ${calcularDiasDesde(e.timestampRecibidoChile)} día(s)`, 'badge-estado badge-cargado');
+            estadoHtml = badge(`✅ Confirmado por importadora · ${calcularDiasDesde(e.timestampConfirmado)} día(s) camino a Bolivia`, 'badge-estado badge-cargado');
             accionHtml = btn('🇧🇴 Llegó a Bolivia', `abrirModalEtapa('${e.id}','llegoBolivia')`, 'btn-verde');
+        } else if (st === 'recibidoChile') {
+            icono = '📥';
+            estadoHtml = badge(`📥 Recibido en Chile · ${calcularDiasDesde(e.timestampRecibidoChile)} día(s) esperando confirmación de la importadora`, 'badge-estado badge-cargado');
+            accionHtml = btn('✅ Confirmación importadora', `abrirModalEtapa('${e.id}','confirmado')`, 'btn-verde');
         } else if (st === 'llego') {
             icono = '🇨🇱';
             estadoHtml = badge(`📬 En Correos Chile · ${calcularDiasDesde(e.timestampLlegada)} día(s) esperando la recepción internacional`, 'badge-estado badge-cargado');
@@ -3526,9 +3531,10 @@ const ETAPAS_ESTIMADO = {
     llegoChile:    { flag: 'llegoChile',    ts: 'timestampLlegoChile',    fecha: 'fechaLlegoChile',    titulo: '🇨🇱 Llegó a Chile (track)', ayuda: 'Fecha y hora de tu track en que el paquete llegó a Chile (por ejemplo 2026-11-04 11:43).' },
     llegoCorreos:  { flag: 'llego',         ts: 'timestampLlegada',       fecha: 'fechaLlegada',       titulo: '📬 Llegó a Correos Chile', ayuda: 'Fecha y hora en que el paquete llegó al centro de procesamiento de Correos Chile.' },
     recibidoChile: { flag: 'recibidoChile', ts: 'timestampRecibidoChile', fecha: 'fechaRecibidoChile', titulo: '📥 Recibido en Chile por la importadora', ayuda: 'Fecha y hora en que la importadora lo recibió en Chile.' },
+    confirmado:    { flag: 'confirmado', ts: 'timestampConfirmado', fecha: 'fechaConfirmado', titulo: '✅ Confirmación de la importadora', ayuda: 'Fecha en que la importadora confirmó que el paquete está en su almacén (puede tardar semanas).' },
     llegoBolivia:  { flag: 'llegoBolivia',  ts: 'timestampLlegoBolivia',  fecha: 'fechaLlegoBolivia',  titulo: '🇧🇴 Llegó a Bolivia', ayuda: 'Fecha y hora en que el paquete llegó a Bolivia.' }
 };
-const ORDEN_ETAPAS = ['timestampEnvio', 'timestampLlegoChile', 'timestampLlegada', 'timestampRecibidoChile', 'timestampLlegoBolivia', 'timestampRecogido'];
+const ORDEN_ETAPAS = ['timestampEnvio', 'timestampLlegoChile', 'timestampLlegada', 'timestampRecibidoChile', 'timestampConfirmado', 'timestampLlegoBolivia', 'timestampRecogido'];
 let etapaEditando = null;
 
 function abrirModalEtapa(id, etapa) {
@@ -3587,7 +3593,8 @@ function calcularDiasEtapas(est) {
     est.diasChileCorreos = (est.llego && est.llegoChile) ? calcularDiasEntre(est.timestampLlegoChile, est.timestampLlegada) : undefined;
     est.diasEnvioCorreos = est.llego ? calcularDiasEntre(est.timestampEnvio, est.timestampLlegada) : undefined;
     est.diasCorreosImportadora = est.recibidoChile ? calcularDiasEntre(est.timestampLlegada, est.timestampRecibidoChile) : undefined;
-    est.diasTransitoBolivia = est.llegoBolivia ? calcularDiasEntre(est.timestampRecibidoChile, est.timestampLlegoBolivia) : undefined;
+    est.diasConfirmacion = est.confirmado ? calcularDiasEntre(est.timestampRecibidoChile, est.timestampConfirmado) : undefined;
+    est.diasTransitoBolivia = est.llegoBolivia ? calcularDiasEntre(est.timestampConfirmado || est.timestampRecibidoChile, est.timestampLlegoBolivia) : undefined;
     est.diasBoliviaRecogido = est.recogido ? calcularDiasEntre(est.timestampLlegoBolivia || est.timestampRecibidoChile || est.timestampLlegada, est.timestampRecogido) : undefined;
     est.diasTotal = est.recogido ? calcularDiasEntre(est.timestampEnvio, est.timestampRecogido) : undefined;
 }
@@ -3679,8 +3686,12 @@ function abrirDetalleEstimado(id) {
         filas += dias('🇨🇱 Correos → importadora', calcularDiasEntre(est.timestampLlegada, est.timestampRecibidoChile));
         filas += fila('📥 Recibido en Chile por importadora', est.fechaRecibidoChile);
     }
+    if (est.confirmado) {
+        filas += dias('⏳ Espera de confirmación importadora', calcularDiasEntre(est.timestampRecibidoChile, est.timestampConfirmado));
+        filas += fila('✅ Confirmado por importadora', est.fechaConfirmado);
+    }
     if (est.llegoBolivia) {
-        filas += dias('🚚 Importadora → Bolivia', calcularDiasEntre(est.timestampRecibidoChile, est.timestampLlegoBolivia));
+        filas += dias('🚚 Importadora → Bolivia', calcularDiasEntre(est.timestampConfirmado || est.timestampRecibidoChile, est.timestampLlegoBolivia));
         filas += fila('🇧🇴 Llegó a Bolivia', est.fechaLlegoBolivia);
     }
     if (est.recogido) {
@@ -3693,7 +3704,7 @@ function abrirDetalleEstimado(id) {
         filas += dias('🕒 Días totales hasta hoy', calcularDiasDesde(est.timestampEnvio));
     }
 
-    const nombresEstado = { sinPagar: '⏸️ Envío sin pagar', envio: '🚚 En camino', llegoChile: '🇨🇱 En Chile (llegó a Chile)', llego: '📬 En Correos Chile', recibidoChile: '🚚 Camino a Bolivia', llegoBolivia: '🇧🇴 En Bolivia (por recoger)', recogido: '✅ Recogido en Bolivia' };
+    const nombresEstado = { sinPagar: '⏸️ Envío sin pagar', envio: '🚚 En camino', llegoChile: '🇨🇱 En Chile (llegó a Chile)', llego: '📬 En Correos Chile', recibidoChile: '📥 Recibido en Chile (esperando confirmación)', confirmado: '✅ Confirmado por importadora (camino a Bolivia)', llegoBolivia: '🇧🇴 En Bolivia (por recoger)', recogido: '✅ Recogido en Bolivia' };
     const estadoTxt = nombresEstado[estadoEstimadoActual(est)];
 
     const btnEditar = (cond, etapa, texto) => cond ? `<button class="btn btn-secondary" style="flex:1 1 45%;" onclick="cerrarModalDetalleEstimado(); abrirModalEtapa('${est.id}','${etapa}')">${texto}</button>` : '';
@@ -3702,6 +3713,7 @@ function abrirDetalleEstimado(id) {
         est.envioPagado ? `<button class="btn btn-secondary" style="flex:1 1 45%;" onclick="cerrarModalDetalleEstimado(); abrirModalEtapa('${est.id}','llegoChile')">${est.llegoChile ? '✏️ Editar llegada a Chile' : '🇨🇱 Llegó a Chile'}</button>` : '',
         btnEditar(est.llego, 'llegoCorreos', '✏️ Editar llegada Correos'),
         btnEditar(est.recibidoChile, 'recibidoChile', '✏️ Editar recibido Chile'),
+        btnEditar(est.confirmado, 'confirmado', '✏️ Editar confirmación'),
         btnEditar(est.llegoBolivia, 'llegoBolivia', '✏️ Editar llegada Bolivia'),
         (est.llegoBolivia || est.recogido) ? `<button class="btn btn-verde" style="flex:1 1 45%;" onclick="cerrarModalDetalleEstimado(); abrirModalRecogido('${est.id}')">${est.recogido ? '✏️ Editar recogido' : '✅ Recogido en Bolivia'}</button>` : ''
     ].join('');
@@ -6880,9 +6892,10 @@ const DETALLE_DEFECTO = {
     'chart-donut': ''
 };
 
+let mejorDiaSemanas = '';
 function resetearDetalle(id) {
     const el = document.getElementById('det-' + id);
-    if (el) { el.innerHTML = DETALLE_DEFECTO[id]; el.dataset.idx = ''; }
+    if (el) { el.innerHTML = (id === 'chart-semanas' ? mejorDiaSemanas : '') + DETALLE_DEFECTO[id]; el.dataset.idx = ''; }
 }
 
 function resetearDetalles() {
@@ -6918,9 +6931,16 @@ function actualizarChartSemanas() {
     const sel = (document.getElementById('sel-semanas') || {}).value || 'todo';
     const dias = diasDeGrafico(sel, ventas);
     const grupos = dias.map(d => ventas.filter(x => inicioDia(x.t) === d));
+    const totales = grupos.map(g => g.reduce((s, x) => s + (x.v.total || 0), 0));
+    const largas = dias.map(d => new Date(d).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
     detallesGraficos['chart-semanas'] = grupos;
-    crearGrafico('chart-semanas', 'bar', dias.map(fechaExacta),
-        grupos.map(g => g.reduce((s, x) => s + (x.v.total || 0), 0)), '#f97316', 'Ventas (Bs)');
+    crearGrafico('chart-semanas', 'bar', dias.map(fechaExacta), totales, '#f97316', 'Ventas (Bs)', { encabezados: largas, detalleFn: resumenMes });
+    // Mejor día: el día con más ventas (se muestra siempre arriba del recuadro)
+    const max = Math.max(0, ...totales);
+    mejorDiaSemanas = max > 0
+        ? `<div style="color:#e2e8f0;margin-bottom:6px;">📅 Mejor día: <b>${largas[totales.indexOf(max)]}</b> · ${formatMoney(max)}</div>`
+        : '';
+    resetearDetalle('chart-semanas');
 }
 
 // Gráfico 2: productos más vendidos
