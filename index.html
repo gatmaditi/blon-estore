@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0d0d0f">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2732,6 +2733,20 @@
                 </div>
             </div>
             <div style="margin-bottom:20px;">
+                <label>📷 Mi QR de Yape</label>
+                <div class="logo-preview">
+                    <div class="logo-imagen" id="qr-preview-img"><span>📷</span></div>
+                    <div class="logo-botones">
+                        <button class="btn btn-azul" onclick="document.getElementById('file-qr-config').click()">📷 Subir QR</button>
+                        <button class="btn btn-danger" onclick="eliminarQrYape()">🗑️ Eliminar</button>
+                        <input type="file" id="file-qr-config" accept="image/*" style="display:none" onchange="subirQrYape(this)">
+                    </div>
+                </div>
+                <p id="qr-estado" style="font-size:13px; margin:8px 0 0;"></p>
+                <label style="margin-top:10px;">📅 Fecha de vigencia (si no se detecta sola)</label>
+                <input type="date" id="qr-vigencia-manual" onchange="guardarVigenciaQrManual(this.value)">
+            </div>
+            <div style="margin-bottom:20px;">
                 <label>🪙 Moneda</label>
                 <select id="cfg-moneda" onchange="actualizarPreviewMoneda()">
                     <option value="Bs">🇧🇴 Boliviano (Bs)</option>
@@ -4418,6 +4433,7 @@ function quitarFotoEntregaSeleccionada(index) {
 // CONFIGURACIÓN
 // =============================================
 function cargarConfiguracion() {
+    renderQrConfig();
     document.getElementById('cfg-nombre').value = estado.config.nombre || 'Mi Tienda';
     document.getElementById('cfg-moneda').value = estado.config.moneda || 'Bs';
     document.getElementById('cfg-pantalla-completa').checked = !!estado.config.pantallaCompleta;
@@ -4461,6 +4477,113 @@ function actualizarPreviewMoneda() {
     const moneda = document.getElementById('cfg-moneda').value;
     document.getElementById('moneda-preview').textContent = `Vista previa: ${moneda} 1,250.00`;
 }
+// ===== QR de Yape: subir imagen y leer la fecha de vigencia =====
+const MESES_QR = { ene: 0, feb: 1, mar: 2, abr: 3, may: 4, jun: 5, jul: 6, ago: 7, sep: 8, oct: 9, nov: 10, dic: 11 };
+
+function detectarVigenciaQr(texto) {
+    const m = texto.toLowerCase().match(/hasta\s+(?:el\s+)?(\d{1,2})\s+(?:de\s+)?([a-zñ]{3,})\.?\s*(?:de\s+)?(\d{4})/);
+    if (!m) return null;
+    const mes = MESES_QR[m[2].slice(0, 3)];
+    if (mes === undefined) return null;
+    return new Date(Number(m[3]), mes, Number(m[1]), 23, 59, 59).getTime();
+}
+
+function redimensionarImagen(file, maxLado, calidad) {
+    return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                const esc = Math.min(1, maxLado / Math.max(img.width, img.height));
+                const c = document.createElement('canvas');
+                c.width = Math.round(img.width * esc);
+                c.height = Math.round(img.height * esc);
+                c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                resolve(c.toDataURL('image/jpeg', calidad));
+            };
+            img.onerror = reject;
+            img.src = r.result;
+        };
+        r.onerror = reject;
+        r.readAsDataURL(file);
+    });
+}
+
+async function subirQrYape(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const imagen = await redimensionarImagen(file, 700, 0.85);
+    estado.config.qr = { imagen: imagen, vigenciaHasta: null };
+    guardarEstado();
+    renderQrConfig();
+    notify('⏳ Buscando la fecha de vigencia...', 'success');
+    try {
+        if (typeof Tesseract === 'undefined') throw new Error('sin lector');
+        const worker = await Tesseract.createWorker('spa');
+        const { data } = await worker.recognize(file);
+        await worker.terminate();
+        const vig = detectarVigenciaQr(data.text || '');
+        if (vig) {
+            estado.config.qr.vigenciaHasta = vig;
+            guardarEstado();
+            notify('✅ Vigencia detectada', 'success');
+        } else {
+            notify('No encontré la fecha. Ponela abajo a mano.', 'error');
+        }
+    } catch (e) {
+        notify('No pude leer la fecha. Ponela abajo a mano.', 'error');
+    }
+    input.value = '';
+    renderQrConfig();
+}
+
+function guardarVigenciaQrManual(valor) {
+    if (!estado.config.qr || !valor) return;
+    const [a, m, d] = valor.split('-').map(Number);
+    estado.config.qr.vigenciaHasta = new Date(a, m - 1, d, 23, 59, 59).getTime();
+    guardarEstado();
+    renderQrConfig();
+    notify('✅ Vigencia guardada', 'success');
+}
+
+function eliminarQrYape() {
+    estado.config.qr = null;
+    guardarEstado();
+    renderQrConfig();
+    notify('🗑️ QR eliminado', 'success');
+}
+
+function renderQrConfig() {
+    const img = document.getElementById('qr-preview-img');
+    const txt = document.getElementById('qr-estado');
+    const inp = document.getElementById('qr-vigencia-manual');
+    if (!img || !txt) return;
+    const qr = estado.config.qr;
+    img.innerHTML = qr && qr.imagen ? `<img src="${qr.imagen}" style="max-width:100%;max-height:100%;object-fit:contain;">` : '<span>📷</span>';
+    if (!qr || !qr.imagen) {
+        txt.textContent = 'Todavía no subiste tu QR.';
+        txt.style.color = '#888';
+    } else if (!qr.vigenciaHasta) {
+        txt.textContent = '⚠️ No se detectó la vigencia. Ponela abajo.';
+        txt.style.color = '#f59e0b';
+    } else {
+        const dias = Math.ceil((qr.vigenciaHasta - Date.now()) / DIA_MS);
+        const fecha = new Date(qr.vigenciaHasta).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' });
+        if (dias >= 0) {
+            txt.textContent = `✅ Vigente: faltan ${dias} día(s) (hasta el ${fecha})`;
+            txt.style.color = '#00ff88';
+        } else {
+            txt.textContent = `⚠️ Venció el ${fecha}. Subí uno nuevo.`;
+            txt.style.color = '#ef4444';
+        }
+    }
+    if (inp) {
+        const f = qr && qr.vigenciaHasta ? new Date(qr.vigenciaHasta) : null;
+        const pad = n => String(n).padStart(2, '0');
+        inp.value = f ? `${f.getFullYear()}-${pad(f.getMonth() + 1)}-${pad(f.getDate())}` : '';
+    }
+}
+
 function subirLogo(input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
