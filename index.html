@@ -4607,6 +4607,52 @@ function renderVentaQr(total) {
         <div style="color:#ffaa00;font-size:28px;font-weight:bold;">${formatMoney(total)}</div>
         ${vencido ? '<div style="color:#ef4444;font-size:12px;margin-top:8px;">⚠️ Tu QR venció. Subí uno nuevo.</div>' : ''}
     </div>`;
+    iniciarEsperaPagoQr(total);
+}
+
+// Espera el Yape: si llega un pago del mismo monto mientras la venta está abierta, la termina sola
+let qrEspera = null;
+
+function iniciarEsperaPagoQr(total) {
+    const monto = Number(total) || 0;
+    if (qrEspera) { qrEspera.monto = Number(total) || 0; return; }
+    qrEspera = { monto: monto, desde: Date.now() - 30000, procesando: false, timer: null };
+    qrEspera.timer = setInterval(revisarPagoQr, 3000);
+}
+
+function detenerEsperaPagoQr() {
+    if (qrEspera) clearInterval(qrEspera.timer);
+    qrEspera = null;
+}
+
+async function revisarPagoQr() {
+    if (!qrEspera || qrEspera.procesando || !supabaseClient) return;
+    const modal = document.getElementById('modalVenta');
+    if (!modal || !modal.classList.contains('active') || document.getElementById('venta-pago').value !== 'QR' || qrEspera.monto <= 0) {
+        detenerEsperaPagoQr();
+        return;
+    }
+    qrEspera.procesando = true;
+    try {
+        const { data } = await supabaseClient.from('pagos_yape')
+            .select('id, monto, creado').eq('usado', false)
+            .gte('creado', new Date(qrEspera.desde).toISOString())
+            .order('creado', { ascending: true }).limit(20);
+        const hit = (data || []).find(p => Math.abs(Number(p.monto) - qrEspera.monto) < 0.005);
+        if (hit) {
+            const antes = estado.ventas.length;
+            detenerEsperaPagoQr();
+            try {
+                finalizarVentaDesdeModal();
+            } finally {
+                if (estado.ventas.length > antes) {
+                    await supabaseClient.from('pagos_yape').update({ usado: true }).eq('id', hit.id);
+                }
+            }
+            return;
+        }
+    } catch (e) { /* sin conexión: reintenta en el próximo ciclo */ }
+    if (qrEspera) qrEspera.procesando = false;
 }
 
 // QR agrandado con el monto: se cierra tocando fuera del recuadro
