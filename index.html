@@ -2672,6 +2672,12 @@
     <!-- PRIVACIDAD -->
     <div id="seccion-privacidad" class="seccion">
         <div class="card">
+            <h2>⏪ Punto de restauración</h2>
+            <p style="color:#666; font-size:11px; margin:0 0 12px;">ℹ️ Guardá una copia de tus datos actuales. Si después hacés pruebas, podés volver a esta copia y todo queda como estaba.</p>
+            <button class="btn btn-azul" onclick="crearPuntoRestauracion()">💾 Guardar punto actual</button>
+            <button class="btn btn-danger" style="margin-top:8px;" onclick="volverAlPuntoRestauracion()">⏪ Volver al punto guardado</button>
+        </div>
+        <div class="card">
             <h2>☁️ Sincronización en la Nube</h2>
             <div class="privacidad-info">
                 <p>🔌 <span class="valor" id="priv-supabase-estado">Verificando...</span></p>
@@ -2844,6 +2850,30 @@ async function guardarEnNube() {
     try {
         await supabaseClient.from('estado_tienda').upsert({ id: ESTADO_ID, data: estado, updated_at: new Date().toISOString() });
     } catch (e) { console.error('Error guardando en la nube:', e); }
+}
+
+// Punto de restauración: una copia de los datos guardada en la nube (aparte de los datos normales)
+const RESPALDO_ID = 'respaldo_tienda';
+
+async function crearPuntoRestauracion() {
+    if (!supabaseClient) { notify('❌ Sin conexión a la nube', 'error'); return; }
+    if (!confirm('¿Guardar el punto de restauración con los datos actuales? Reemplaza el punto anterior.')) return;
+    const { error } = await supabaseClient.from('estado_tienda').upsert({ id: RESPALDO_ID, data: estado, updated_at: new Date().toISOString() });
+    if (error) { notify('❌ No se pudo guardar: ' + error.message, 'error'); return; }
+    notify('✅ Punto de restauración guardado', 'success');
+}
+
+async function volverAlPuntoRestauracion() {
+    if (!supabaseClient) { notify('❌ Sin conexión a la nube', 'error'); return; }
+    const { data, error } = await supabaseClient.from('estado_tienda').select('data, updated_at').eq('id', RESPALDO_ID).single();
+    if (error || !data || !data.data) { notify('❌ No hay punto de restauración guardado', 'error'); return; }
+    const fecha = new Date(data.updated_at).toLocaleString('es');
+    if (!confirm(`¿Volver a los datos guardados el ${fecha}? Lo que hiciste después se pierde.`)) return;
+    clearTimeout(guardarEnNubeTimeout);
+    const { error: e2 } = await supabaseClient.from('estado_tienda').upsert({ id: ESTADO_ID, data: data.data, updated_at: new Date().toISOString() });
+    if (e2) { notify('❌ No se pudo volver: ' + e2.message, 'error'); return; }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data.data)); } catch (e) {}
+    location.reload();
 }
 
 async function borrarTodoLosDatos() {
