@@ -2838,8 +2838,12 @@ async function cargarEstadoDesdeNube() {
     try {
         const { data, error } = await supabaseClient.from('estado_tienda').select('data').eq('id', ESTADO_ID).single();
         if (error || !data || !data.data) return false;
+        const nube = data.data;
+        let local = null;
+        try { local = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) { local = null; }
+        const usarLocal = !!(local && (local.ventas || []).length > (nube.ventas || []).length);
         sincronizandoDesdeNube = true;
-        estado = data.data;
+        estado = usarLocal ? local : nube;
         if (!estado.config) estado.config = { nombre: 'Mi Tienda', logo: null, moneda: 'Bs' };
         if (estado.contadorCliente === undefined) estado.contadorCliente = 0;
         if (!estado.pedidos) estado.pedidos = [];
@@ -2851,6 +2855,7 @@ async function cargarEstadoDesdeNube() {
         crearDropsIniciales();
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(estado)); } catch (e) {}
         sincronizandoDesdeNube = false;
+        if (usarLocal) guardarEnNube();
         return true;
     } catch (e) {
         console.error('No se pudo cargar desde la nube:', e);
@@ -7712,6 +7717,13 @@ async function inicializar() {
     verificarBannerPantallaCompleta();
     notify(cargoDeNube ? '☁️ Datos cargados desde la nube' : '✅ Sistema cargado', 'success');
 }
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && supabaseClient && !sincronizandoDesdeNube) {
+        clearTimeout(guardarEnNubeTimeout);
+        guardarEnNube();
+    }
+});
 
 let resizeTimeout;
 window.addEventListener('resize', () => {
