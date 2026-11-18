@@ -1720,6 +1720,9 @@
     <div class="sidebar-item" onclick="navegarA('logros')">
         <span class="icon">🏆</span> Logros
     </div>
+    <div class="sidebar-item" onclick="navegarA('pagosyape')">
+        <span class="icon">💳</span> Pagos Yape
+    </div>
     <div class="sidebar-item" onclick="navegarA('pedidos')">
         <span class="icon">📦</span> Productos a Pedido
         <span class="badge" id="sidebar-pedidos-count">0</span>
@@ -2426,6 +2429,17 @@
             </div>
             <p style="color:#666; font-size:11px; margin:0 0 15px;">ℹ️ Acá solo se cuentan los días que tarda en llegar cada paquete. No toca el inventario ni el stock de nada.</p>
             <div id="lista-estimado"></div>
+        </div>
+    </div>
+
+    <div id="seccion-pagosyape" class="seccion">
+        <div class="card">
+            <div class="pedido-header">
+                <h2>💳 Pagos Yape</h2>
+                <button class="btn btn-secondary" onclick="renderizarPagosYape()">🔄 Actualizar</button>
+            </div>
+            <p style="color:#666; font-size:11px; margin:0 0 15px;">ℹ️ Son los Yape que llegaron y todavía no marcaste. Cuando uses uno en una venta, tocá "Ya lo usé".</p>
+            <div id="lista-pagos-yape"></div>
         </div>
     </div>
 
@@ -4111,6 +4125,7 @@ function navegarA(seccion) {
         estimado: '⏳ Estimado de Llegada',
         cotizacion: '💲 Cotización',
         logros: '🏆 Logros y Metas',
+        pagosyape: '💳 Pagos Yape',
         pedidos: '📦 Productos a Pedido',
         cargar: '📋 Cargar Pedidos',
         historial: '📜 Historial', 
@@ -4129,6 +4144,7 @@ function navegarA(seccion) {
     if (seccion === 'pedidos') renderizarPedidos();
     if (seccion === 'cotizacion') renderizarCotizacion();
     if (seccion === 'logros') renderizarLogros();
+    if (seccion === 'pagosyape') renderizarPagosYape();
     if (seccion === 'cargar') renderizarCargarPedidos();
     if (seccion === 'historial') renderizarHistorial();
     if (seccion === 'productos') renderizarProductos();
@@ -6751,6 +6767,29 @@ function evaluarMetas() {
         }
     });
     if (cambio) guardarEstado();
+}
+
+// Pagos Yape que llegaron y no se marcaron como usados (tabla pagos_yape)
+async function renderizarPagosYape() {
+    const cont = document.getElementById('lista-pagos-yape');
+    if (!cont) return;
+    if (!supabaseClient) { cont.innerHTML = '<div class="empty"><p>Sin conexión a la nube.</p></div>'; return; }
+    cont.innerHTML = '<p style="color:#888;">Cargando...</p>';
+    const { data, error } = await supabaseClient.from('pagos_yape').select('id, monto, creado').eq('usado', false).order('creado', { ascending: false });
+    if (error) { cont.innerHTML = `<div class="empty"><p>No se pudieron cargar los pagos: ${error.message}</p></div>`; return; }
+    if (!data || !data.length) { cont.innerHTML = '<div class="empty"><p>No hay pagos pendientes.</p></div>'; return; }
+    cont.innerHTML = data.map(p => `<div class="eliminar-item" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div><b style="color:#ffaa00;">Bs ${Number(p.monto).toFixed(2)}</b><div style="font-size:12px;color:#aaa;">🗓️ ${new Date(p.creado).toLocaleString('es')}</div></div>
+        <button class="btn btn-verde" style="padding:6px 12px;font-size:12px;" onclick="marcarPagoYapeUsado(${p.id})">✅ Ya lo usé</button>
+    </div>`).join('');
+}
+
+async function marcarPagoYapeUsado(id) {
+    if (!supabaseClient) return;
+    const { error } = await supabaseClient.from('pagos_yape').update({ usado: true }).eq('id', id);
+    if (error) { notify('❌ No se pudo marcar: ' + error.message, 'error'); return; }
+    notify('✅ Pago marcado', 'success');
+    renderizarPagosYape();
 }
 
 function renderizarLogros() {
