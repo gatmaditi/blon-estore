@@ -9,6 +9,9 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 class MainActivity : Activity() {
+
+    private lateinit var info: TextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val pad = (16 * resources.displayMetrics.density).toInt()
@@ -17,14 +20,30 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
         }
-        caja.addView(TextView(this).apply {
-            text = "Yape Avisos\n\nPaso 1: tocá el botón y activá \"Yape Avisos\" en la lista.\n\nPaso 2: volvé a esta app. Cuando llegue un Yape, se guarda solo."
-            textSize = 16f
+        info = TextView(this).apply { textSize = 14f }
+        caja.addView(info)
+        caja.addView(Button(this).apply {
+            text = "Actualizar estado"
+            setOnClickListener { mostrarEstado() }
         })
         caja.addView(Button(this).apply {
             text = "Abrir acceso a notificaciones"
             setOnClickListener { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
         })
         setContentView(caja)
+        mostrarEstado()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::info.isInitialized) mostrarEstado()
+    }
+
+    private fun mostrarEstado() {
+        val p = getSharedPreferences("estado", MODE_PRIVATE)
+        val acceso = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")?.contains(packageName) == true
+        info.text = "Acceso a notificaciones: " + (if (acceso) "ACTIVADO" else "DESACTIVADO") +
+            "\n\nÚltima notificación de Yape recibida:\n" + p.getString("ultimaNotif", "ninguna todavía") +
+            "\n\nÚltimo envío a la tienda:\n" + p.getString("ultimoEnvio", "ninguno todavía")
     }
 }
