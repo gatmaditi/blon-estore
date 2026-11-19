@@ -1,8 +1,13 @@
 package com.blon.yape
 
 import android.app.Activity
+import android.app.DownloadManager
 import android.app.Dialog
 import android.content.Intent
+import android.net.Uri
+import android.os.Environment
+import android.widget.Toast
+import java.io.File
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
@@ -58,6 +63,11 @@ class MainActivity : Activity() {
     private val colorMal = Color.parseColor("#EF9A9A")
     private val colorPendiente = Color.parseColor("#FFB74D")
     private val colorCargando = Color.parseColor("#FFB74D")
+    private val colorAzul = Color.parseColor("#1565C0")
+
+    private var actualizacion: Actualizacion? = null
+    private lateinit var bannerCard: LinearLayout
+    private lateinit var bannerTexto: TextView
 
     private lateinit var saludo: TextView
     private lateinit var chipTienda: TextView
@@ -118,6 +128,14 @@ class MainActivity : Activity() {
         raiz.addView(cab)
         raiz.addView(espacio(14))
 
+        // Aviso de nueva versión (oculto hasta que haya una)
+        bannerCard = tarjeta(colorAzul)
+        bannerTexto = texto("", 15f, Color.WHITE, true)
+        bannerCard.addView(bannerTexto)
+        bannerCard.visibility = View.GONE
+        bannerCard.setOnClickListener { actualizacion?.let { mostrarDialogoActualizar(it) } }
+        raiz.addView(bannerCard)
+
         // Estado: rojo si falta activar, verde si todo está bien
         estadoCard = tarjeta(colorRojo)
         raiz.addView(estadoCard)
@@ -126,6 +144,7 @@ class MainActivity : Activity() {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         })
         raiz.addView(boton("Actualizar") { cargarTodo(null) })
+        raiz.addView(boton("Buscar actualización") { buscarActualizacion(false) })
 
         val info = tarjeta(colorTarjeta)
         info.addView(texto("Última notificación de Yape", 12f, colorSuave, true))
@@ -166,11 +185,133 @@ class MainActivity : Activity() {
 
         pintarEstado()
         pintarHistorial()
+        buscarActualizacion(true)
     }
 
     override fun onResume() {
         super.onResume()
         if (::lista.isInitialized) cargarTodo(null)
+    }
+
+    // Busca una versión nueva en GitHub. Automático: avisa una vez por versión. Manual: siempre responde.
+    private fun buscarActualizacion(automatico: Boolean) {
+        Thread {
+            val instalada = try {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, 0).versionCode
+            } catch (e: Exception) { 0 }
+            val nueva = try { Actualizador.buscar(instalada) } catch (e: Exception) { null }
+            runOnUiThread {
+                actualizacion = nueva
+                if (nueva == null) {
+                    bannerCard.visibility = View.GONE
+                    if (!automatico) Toast.makeText(this, "✅ Ya tienes la versión más reciente", Toast.LENGTH_SHORT).show()
+                } else {
+                    bannerCard.background = redondeado(colorAzul, 14)
+                    bannerTexto.text = "🆕 Nueva versión disponible. Toca aquí para actualizar"
+                    bannerCard.visibility = View.VISIBLE
+                    val prefs = getSharedPreferences("estado", MODE_PRIVATE)
+                    if (automatico && prefs.getInt("avisoBuild", 0) != nueva.build) {
+                        prefs.edit().putInt("avisoBuild", nueva.build).apply()
+                        mostrarDialogoActualizar(nueva)
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun mostrarDialogoActualizar(a: Actualizacion) {
+        val dlg = Dialog(this)
+        dlg.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dlg.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        val caja = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(22), dp(22), dp(18))
+            background = redondeado(colorTarjeta, 18)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        caja.addView(texto("🆕 Nueva actualización", 18f, colorTexto, true))
+        caja.addView(texto("Versión ${a.build} lista para instalar.", 14f, colorSuave))
+        if (a.notas.isNotBlank()) {
+            caja.addView(texto("Cambios:\n" + a.notas.trim().take(400), 13f, colorTexto))
+        }
+        caja.addView(espacio(10))
+        caja.addView(boton("Actualizar ahora") {
+            dlg.dismiss()
+            descargarActualizacion(a)
+        })
+        caja.addView(boton("Más tarde") { dlg.dismiss() })
+        dlg.setContentView(caja)
+        dlg.show()
+    }
+
+    // Descarga el APK con el gestor de descargas del celular y abre el instalador al terminar
+    private fun descargarActualizacion(a: Actualizacion) {
+        val nombre = "yape-avisos-update.apk"
+        File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), nombre).delete()
+        val dm = getSystemService(DownloadManager::class.java)
+        val id = dm.enqueue(
+            DownloadManager.Request(Uri.parse(a.apkUrl))
+                .setTitle("Yape Avisos")
+                .setDescription("Descargando actualización ${a.build}")
+                .setMimeType("application/vnd.android.package-archive")
+                .setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, nombre)
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        )
+        bannerCard.background = redondeado(colorAzul, 14)
+        bannerCard.visibility = View.VISIBLE
+        bannerTexto.text = "⬇️ Descargando actualización..."
+
+        Thread {
+            var terminado = false
+            while (!terminado) {
+                Thread.sleep(700)
+                val c = dm.query(DownloadManager.Query().setFilterById(id))
+                if (!c.moveToFirst()) {
+                    c.close()
+                    terminado = true
+                    runOnUiThread { mostrarErrorBanner("❌ No se pudo descargar la actualización") }
+                    continue
+                }
+                val estado = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                val bajado = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                val total = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                c.close()
+                when (estado) {
+                    DownloadManager.STATUS_SUCCESSFUL -> {
+                        terminado = true
+                        val uri = dm.getUriForDownloadedFile(id)
+                        runOnUiThread { instalar(uri) }
+                    }
+                    DownloadManager.STATUS_FAILED -> {
+                        terminado = true
+                        runOnUiThread { mostrarErrorBanner("❌ No se pudo descargar la actualización") }
+                    }
+                    else -> {
+                        val pct = if (total > 0) bajado * 100 / total else 0
+                        runOnUiThread { bannerTexto.text = "⬇️ Descargando actualización... $pct%" }
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun instalar(uri: Uri) {
+        bannerTexto.text = "✅ Descarga lista. Confirma la instalación."
+        val i = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(i)
+        } catch (e: Exception) {
+            mostrarErrorBanner("Permite \"Instalar apps desconocidas\" para Yape Avisos y toca el aviso otra vez")
+        }
+    }
+
+    private fun mostrarErrorBanner(msg: String) {
+        bannerCard.background = redondeado(colorRojo, 14)
+        bannerCard.visibility = View.VISIBLE
+        bannerTexto.text = msg
     }
 
     private fun dp(v: Int) = (v * dens).toInt()

@@ -21,7 +21,7 @@ android {
         applicationId = "com.blon.yape"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "2").toInt()
         versionName = "1.1"
     }
 
