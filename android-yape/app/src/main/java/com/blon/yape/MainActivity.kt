@@ -1,10 +1,11 @@
 package com.blon.yape
 
 import android.app.Activity
-import android.app.AlertDialog
+import android.app.Dialog
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.provider.Settings
@@ -13,14 +14,15 @@ import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
 import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
@@ -55,12 +57,15 @@ class MainActivity : Activity() {
     private val colorOk = Color.parseColor("#81C784")
     private val colorMal = Color.parseColor("#EF9A9A")
     private val colorPendiente = Color.parseColor("#FFB74D")
+    private val colorCargando = Color.parseColor("#FFB74D")
 
     private lateinit var saludo: TextView
-    private lateinit var chip: TextView
+    private lateinit var chipTienda: TextView
     private lateinit var estadoCard: LinearLayout
     private lateinit var infoNotif: TextView
     private lateinit var infoEnvio: TextView
+    private lateinit var infoTitular: TextView
+    private lateinit var cargaTexto: TextView
     private lateinit var buscador: EditText
     private lateinit var lista: LinearLayout
     private lateinit var botonHistorial: Button
@@ -78,7 +83,7 @@ class MainActivity : Activity() {
         scroll.addView(raiz)
         setContentView(scroll)
 
-        // Encabezado: título y saludo a la izquierda, nombre del QR a la derecha
+        // Encabezado: título y saludo a la izquierda; tienda vinculada a la derecha
         val cab = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -91,13 +96,24 @@ class MainActivity : Activity() {
         saludo = texto("", 14f, colorSuave)
         izq.addView(saludo)
         cab.addView(izq)
-        chip = TextView(this).apply {
-            textSize = 13f
+
+        val chip = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.END
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            background = redondeado(colorBoton, 14)
+        }
+        chip.addView(TextView(this).apply {
+            text = "Vinculado a:"
+            textSize = 11f
+            setTextColor(colorSuave)
+        })
+        chipTienda = TextView(this).apply {
+            textSize = 14f
             setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(dp(12), dp(6), dp(12), dp(6))
-            background = redondeado(colorBoton, 20)
         }
+        chip.addView(chipTienda)
         cab.addView(chip)
         raiz.addView(cab)
         raiz.addView(espacio(14))
@@ -109,7 +125,7 @@ class MainActivity : Activity() {
         raiz.addView(boton("Abrir acceso a notificaciones") {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         })
-        raiz.addView(boton("Actualizar") { cargarTodo() })
+        raiz.addView(boton("Actualizar") { cargarTodo(null) })
 
         val info = tarjeta(colorTarjeta)
         info.addView(texto("Última notificación de Yape", 12f, colorSuave, true))
@@ -118,9 +134,14 @@ class MainActivity : Activity() {
         info.addView(texto("Último envío a la tienda", 12f, colorSuave, true))
         infoEnvio = texto("", 14f)
         info.addView(infoEnvio)
+        info.addView(texto("Titular del QR vinculado", 12f, colorSuave, true))
+        infoTitular = texto("", 14f)
+        info.addView(infoTitular)
         raiz.addView(info)
 
         raiz.addView(texto("Historial de pagos", 17f, colorTexto, true))
+        cargaTexto = texto("", 13f, colorCargando)
+        raiz.addView(cargaTexto)
         botonHistorial = boton("🔒 Cargar historial") { pedirPin() }
         raiz.addView(botonHistorial)
         buscador = EditText(this).apply {
@@ -149,7 +170,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::lista.isInitialized) cargarTodo()
+        if (::lista.isInitialized) cargarTodo(null)
     }
 
     private fun dp(v: Int) = (v * dens).toInt()
@@ -176,7 +197,7 @@ class MainActivity : Activity() {
             setPadding(0, dp(3), 0, dp(3))
         }
 
-    private fun espacio(alto: Int) = android.view.View(this).apply {
+    private fun espacio(alto: Int) = View(this).apply {
         layoutParams = LinearLayout.LayoutParams(1, dp(alto))
     }
 
@@ -207,12 +228,15 @@ class MainActivity : Activity() {
         infoNotif.text = p.getString("ultimaNotif", "ninguna todavía")
         infoEnvio.text = p.getString("ultimoEnvio", "ninguno todavía")
 
+        val tienda = p.getString("tiendaNombre", "") ?: ""
+        chipTienda.text = if (tienda.isEmpty()) "Sin tienda" else tienda
+
         val nombre = p.getString("qrNombre", "") ?: ""
         if (nombre.isEmpty()) {
-            chip.text = "Sin QR vinculado"
+            infoTitular.text = "Sin QR cargado en la tienda"
             saludo.text = "Conecta tus pagos de Yape con la tienda"
         } else {
-            chip.text = Titular.nombreCorto(nombre)
+            infoTitular.text = Titular.nombreCorto(nombre)
             val primero = Titular.primerNombre(nombre)
             val yaVio = p.getBoolean("bienvenidaVista", false)
             saludo.text = if (yaVio) "Bienvenido de nuevo $primero" else "Bienvenido $primero"
@@ -220,45 +244,127 @@ class MainActivity : Activity() {
         }
     }
 
-    // Pide el PIN de 4 dígitos para mostrar el historial
+    // Ventana oscura con 4 casillas para el PIN
     private fun pedirPin() {
-        val campo = EditText(this).apply {
-            hint = "PIN de 4 dígitos"
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            filters = arrayOf(InputFilter.LengthFilter(4))
-            setPadding(dp(20), dp(12), dp(20), dp(12))
+        val dlg = Dialog(this)
+        dlg.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dlg.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        val caja = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(22), dp(22), dp(18))
+            background = redondeado(colorTarjeta, 18)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
-        AlertDialog.Builder(this)
-            .setTitle("Cargar historial")
-            .setMessage("Escribí tu PIN para ver el historial de pagos.")
-            .setView(campo)
-            .setPositiveButton("Confirmar") { _, _ ->
-                if (campo.text.toString() == PIN) {
-                    desbloqueado = true
-                    cargarTodo()
-                } else {
-                    Toast.makeText(this, "PIN incorrecto", Toast.LENGTH_SHORT).show()
+        caja.addView(texto("🔒 Cargar historial", 18f, colorTexto, true))
+        caja.addView(texto("Escribe tu PIN de 4 dígitos", 14f, colorSuave))
+
+        val fila = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(16), 0, dp(12))
+        }
+        val casillas = ArrayList<EditText>()
+        val msg = texto("", 14f, colorMal)
+
+        for (i in 0 until 4) {
+            val c = EditText(this).apply {
+                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+                filters = arrayOf(InputFilter.LengthFilter(1))
+                gravity = Gravity.CENTER
+                textSize = 22f
+                setTextColor(colorTexto)
+                setHintTextColor(colorSuave)
+                setSingleLine(true)
+                background = GradientDrawable().apply {
+                    setColor(colorBoton)
+                    setStroke(dp(2), colorSuave)
+                    cornerRadius = dp(10).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(dp(54), dp(62)).apply { setMargins(dp(6), 0, dp(6), 0) }
+                addTextChangedListener(object : TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                    override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {
+                        msg.text = ""
+                        if (s != null && s.isNotEmpty() && i < 3) casillas[i + 1].requestFocus()
+                    }
+                    override fun afterTextChanged(s: Editable?) {}
+                })
+                setOnKeyListener { _, keyCode, ev ->
+                    // Borrar en una casilla vacía regresa a la anterior
+                    if (keyCode == KeyEvent.KEYCODE_DEL && ev.action == KeyEvent.ACTION_DOWN && text.isEmpty() && i > 0) {
+                        casillas[i - 1].setText("")
+                        casillas[i - 1].requestFocus()
+                        true
+                    } else false
                 }
             }
-            .setNegativeButton("Cancelar", null)
-            .show()
+            casillas.add(c)
+            fila.addView(c)
+        }
+        caja.addView(fila)
+        caja.addView(msg)
+
+        val confirmar = boton("Confirmar") {}
+        confirmar.setOnClickListener {
+            val pin = casillas.joinToString("") { it.text.toString() }
+            when {
+                pin.length < 4 -> {
+                    msg.text = "Escribe los 4 dígitos."
+                    msg.setTextColor(colorMal)
+                }
+                pin != PIN -> {
+                    msg.text = "❌ PIN incorrecto. Intenta de nuevo."
+                    msg.setTextColor(colorMal)
+                    casillas.forEach { it.setText("") }
+                    casillas[0].requestFocus()
+                }
+                else -> {
+                    msg.text = "✅ PIN correcto. Cargando historial..."
+                    msg.setTextColor(colorOk)
+                    confirmar.isEnabled = false
+                    desbloqueado = true
+                    cargarTodo { ok ->
+                        if (ok) {
+                            dlg.dismiss()
+                        } else {
+                            msg.text = "❌ No se pudo cargar. Revisa internet y toca Confirmar."
+                            msg.setTextColor(colorMal)
+                            confirmar.isEnabled = true
+                        }
+                    }
+                }
+            }
+        }
+        caja.addView(confirmar)
+        caja.addView(boton("Cancelar") { dlg.dismiss() })
+
+        dlg.setContentView(caja)
+        dlg.show()
+        casillas[0].requestFocus()
     }
 
-    // Trae el nombre del QR de la tienda y, si ya desbloqueaste, el historial de pagos desde Supabase
-    private fun cargarTodo() {
+    // Trae de Supabase el nombre de la tienda, el titular del QR y, si ya desbloqueaste, el historial de pagos.
+    // alTerminar (opcional) avisa si salió bien (true) o no (false).
+    private fun cargarTodo(alTerminar: ((Boolean) -> Unit)?) {
         pintarEstado()
+        cargaTexto.setTextColor(colorCargando)
+        cargaTexto.text = "⏳ Cargando datos..."
         Thread {
             var err: String? = null
             var nuevos: List<Pago> = pagos
 
             try {
                 val arr = JSONArray(get("estado_tienda?id=eq.tienda_principal&select=data"))
-                val nombre = arr.optJSONObject(0)?.optJSONObject("data")
-                    ?.optJSONObject("config")?.optJSONObject("qr")
-                    ?.optString("nombre", "") ?: ""
-                getSharedPreferences("estado", MODE_PRIVATE).edit().putString("qrNombre", nombre).apply()
+                val config = arr.optJSONObject(0)?.optJSONObject("data")?.optJSONObject("config")
+                val tienda = config?.optString("nombre", "") ?: ""
+                val nombreQr = config?.optJSONObject("qr")?.optString("nombre", "") ?: ""
+                getSharedPreferences("estado", MODE_PRIVATE).edit()
+                    .putString("tiendaNombre", tienda)
+                    .putString("qrNombre", nombreQr)
+                    .apply()
             } catch (e: Exception) {
-                err = "No pude leer el nombre del QR (revisa internet)."
+                err = "No pude leer los datos de la tienda (revisa internet)."
             }
 
             if (desbloqueado) try {
@@ -284,6 +390,14 @@ class MainActivity : Activity() {
                 errorCarga = errFinal
                 pintarEstado()
                 pintarHistorial()
+                if (errFinal == null) {
+                    cargaTexto.setTextColor(colorOk)
+                    cargaTexto.text = "✅ Datos cargados"
+                } else {
+                    cargaTexto.setTextColor(colorMal)
+                    cargaTexto.text = "❌ $errFinal"
+                }
+                alTerminar?.invoke(errFinal == null)
             }
         }.start()
     }
