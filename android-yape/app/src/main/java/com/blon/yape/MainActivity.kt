@@ -1,6 +1,7 @@
 package com.blon.yape
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -8,14 +9,18 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.provider.Settings
 import android.text.Editable
+import android.text.InputFilter
+import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
@@ -33,9 +38,12 @@ class MainActivity : Activity() {
         val usado: Boolean
     )
 
+    private val PIN = "2007"
+
     private var dens = 1f
     private var pagos: List<Pago> = emptyList()
     private var errorCarga: String? = null
+    private var desbloqueado = false
 
     private val colorFondo = Color.parseColor("#121212")
     private val colorTarjeta = Color.parseColor("#1E1E24")
@@ -55,6 +63,7 @@ class MainActivity : Activity() {
     private lateinit var infoEnvio: TextView
     private lateinit var buscador: EditText
     private lateinit var lista: LinearLayout
+    private lateinit var botonHistorial: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -112,6 +121,8 @@ class MainActivity : Activity() {
         raiz.addView(info)
 
         raiz.addView(texto("Historial de pagos", 17f, colorTexto, true))
+        botonHistorial = boton("🔒 Cargar historial") { pedirPin() }
+        raiz.addView(botonHistorial)
         buscador = EditText(this).apply {
             hint = "Buscar por nombre, compra o monto"
             setHintTextColor(colorSuave)
@@ -209,7 +220,31 @@ class MainActivity : Activity() {
         }
     }
 
-    // Trae el nombre del QR de la tienda y el historial de pagos desde Supabase
+    // Pide el PIN de 4 dígitos para mostrar el historial
+    private fun pedirPin() {
+        val campo = EditText(this).apply {
+            hint = "PIN de 4 dígitos"
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            filters = arrayOf(InputFilter.LengthFilter(4))
+            setPadding(dp(20), dp(12), dp(20), dp(12))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Cargar historial")
+            .setMessage("Escribí tu PIN para ver el historial de pagos.")
+            .setView(campo)
+            .setPositiveButton("Confirmar") { _, _ ->
+                if (campo.text.toString() == PIN) {
+                    desbloqueado = true
+                    cargarTodo()
+                } else {
+                    Toast.makeText(this, "PIN incorrecto", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    // Trae el nombre del QR de la tienda y, si ya desbloqueaste, el historial de pagos desde Supabase
     private fun cargarTodo() {
         pintarEstado()
         Thread {
@@ -226,7 +261,7 @@ class MainActivity : Activity() {
                 err = "No pude leer el nombre del QR (revisa internet)."
             }
 
-            try {
+            if (desbloqueado) try {
                 val arr = JSONArray(get("pagos_yape?select=id,monto,nombre,compra,creado,usado&order=creado.desc&limit=100"))
                 nuevos = (0 until arr.length()).map { i ->
                     val o = arr.getJSONObject(i)
@@ -276,7 +311,10 @@ class MainActivity : Activity() {
 
     private fun pintarHistorial() {
         if (!::lista.isInitialized) return
+        botonHistorial.visibility = if (desbloqueado) View.GONE else View.VISIBLE
+        buscador.visibility = if (desbloqueado) View.VISIBLE else View.GONE
         lista.removeAllViews()
+        if (!desbloqueado) return
         errorCarga?.let { lista.addView(texto(it, 14f, colorMal)) }
 
         val q = buscador.text.toString().trim().lowercase(Locale.getDefault()).replace(',', '.')
