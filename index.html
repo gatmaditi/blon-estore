@@ -4507,15 +4507,24 @@ function detectarVigenciaQr(texto) {
 // Saca el nombre del titular del texto del QR (ej: "SEBASTIAN G.V"), sin números ni palabras de Yape
 function detectarNombreQr(texto) {
     const malas = /yape|qr|pagar|hasta|vigente|vence|monto|cuenta|celular|escane|bcp|bbva|interbank/i;
+    const letra = 'A-Za-zÁÉÍÓÚÑáéíóúñ';
+    const dosLetras = new RegExp(`[${letra}]{2}`);
+    const inicial = new RegExp(`^[${letra}]\\.[${letra}]`);
+    let mejor = null;
     for (const linea of (texto || '').split('\n')) {
-        const l = linea.trim().replace(/\s+/g, ' ').replace(/\.+$/, '');
-        if (!/^[A-Za-zÁÉÍÓÚÑáéíóúñ][A-Za-zÁÉÍÓÚÑáéíóúñ. ]+$/.test(l)) continue;
+        // Quita símbolos sueltos (®, *, |) y deja solo letras, puntos y espacios
+        const l = linea.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ. ]/g, ' ').replace(/\s+/g, ' ').trim().replace(/\.+$/, '');
+        if (!new RegExp(`^[${letra}][${letra}. ]+$`).test(l)) continue;
         if (malas.test(l)) continue;
         const palabras = l.split(' ').filter(Boolean);
         if (palabras.length < 2 || palabras.length > 5) continue;
-        return l.toUpperCase();
+        // Cada palabra debe tener 2 letras o ser una inicial con punto (ej: G.V). Así se descartan restos como "Ó E"
+        if (!palabras.every(p => dosLetras.test(p) || inicial.test(p))) continue;
+        const letras = l.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g, '').length;
+        if (letras < 6) continue;
+        if (!mejor || letras > mejor.letras) mejor = { texto: l.toUpperCase(), letras: letras };
     }
-    return null;
+    return mejor ? mejor.texto : null;
 }
 
 function redimensionarImagen(file, maxLado, calidad) {
