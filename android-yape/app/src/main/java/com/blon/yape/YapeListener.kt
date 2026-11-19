@@ -3,17 +3,20 @@ package com.blon.yape
 import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Lee las notificaciones y, si dicen "te envió Bs. X", guarda el monto en Supabase.
-// Guarda en el celular el historial de pagos y lo último que recibió / envió.
+// Lee las notificaciones y, si dicen "NOMBRE te envió Bs. X", guarda nombre y monto en Supabase.
+// Guarda en el celular lo último que recibió y lo último que envió, para diagnosticar problemas.
 class YapeListener : NotificationListenerService() {
 
-    private val regex = Regex("te envi[oó]\\s+Bs\\.?\\s*([0-9]+(?:[.,][0-9]{1,2})?)", RegexOption.IGNORE_CASE)
+    // Grupo 1: nombre de quien paga. Grupo 2: monto.
+    private val regex = Regex("([\\p{L} .]+?)\\s+te envi[oó]\\s+Bs\\.?\\s*([0-9]+(?:[.,][0-9]{1,2})?)", RegexOption.IGNORE_CASE)
+    private val prefijos = Regex("^(yape\\s+)?(qr\\s+de\\s+)?", RegexOption.IGNORE_CASE)
 
     // Evita procesar dos veces la misma notificación (misma clave de Android)
     private val clavesVistas = LinkedHashSet<String>()
@@ -40,7 +43,8 @@ class YapeListener : NotificationListenerService() {
         }
         estado().edit().putString("ultimaNotif", hora() + " · " + texto.take(120)).apply()
 
-        val monto = m.groupValues[1].replace(',', '.').toDoubleOrNull() ?: return
+        val monto = m.groupValues[2].replace(',', '.').toDoubleOrNull() ?: return
+        val nombre = m.groupValues[1].trim().replace(prefijos, "").trim()
 
         val ahora = System.currentTimeMillis()
         textosRecientes.entries.removeAll { ahora - it.value > 60_000 }
@@ -50,28 +54,29 @@ class YapeListener : NotificationListenerService() {
         }
         textosRecientes[texto] = ahora
 
-        Thread { guardarPago(monto) }.start()
+        Thread { guardarPago(monto, nombre) }.start()
     }
 
-    private fun registrar(monto: Double, resultado: String) {
+    private fun registrar(monto: Double, resultado: String, nombre: String = "") {
         val montoTxt = String.format(Locale.US, "%.2f", monto)
         Registro.agregar(this, hora() + "|" + montoTxt + "|" + resultado)
-        estado().edit().putString("ultimoEnvio", hora() + " · " + resultado + " · Bs " + montoTxt).apply()
+        val quien = if (nombre.isEmpty()) "" else " · $nombre"
+        estado().edit().putString("ultimoEnvio", hora() + " · " + resultado + " · Bs " + montoTxt + quien).apply()
     }
 
     // Intenta hasta 3 veces por si no hay internet en ese momento
-    private fun guardarPago(monto: Double) {
+    private fun guardarPago(monto: Double, nombre: String) {
         val esperas = longArrayOf(0L, 3000L, 8000L)
         var resultado = "Error"
         for (espera in esperas) {
             if (espera > 0) Thread.sleep(espera)
-            resultado = intentarEnvio(monto)
+            resultado = intentarEnvio(monto, nombre)
             if (resultado == "Enviado") break
         }
-        registrar(monto, resultado)
+        registrar(monto, resultado, nombre)
     }
 
-    private fun intentarEnvio(monto: Double): String = try {
+    private fun intentarEnvio(monto: Double, nombre: String): String = try {
         val conn = URL("${Config.SUPABASE_URL}/rest/v1/pagos_yape").openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.connectTimeout = 10_000
@@ -81,7 +86,8 @@ class YapeListener : NotificationListenerService() {
         conn.setRequestProperty("Content-Type", "application/json")
         conn.setRequestProperty("Prefer", "return=minimal")
         conn.doOutput = true
-        conn.outputStream.use { it.write("""{"monto":$monto,"usado":false}""".toByteArray()) }
+        val cuerpo = JSONObject().put("monto", monto).put("usado", false).put("nombre", nombre).toString()
+        conn.outputStream.use { it.write(cuerpo.toByteArray()) }
         val code = conn.responseCode
         conn.disconnect()
         if (code in 200..299) "Enviado" else "Error HTTP $code"

@@ -2752,6 +2752,8 @@
                 <p id="qr-estado" style="font-size:13px; margin:8px 0 0;"></p>
                 <label style="margin-top:10px;">📅 Fecha de vigencia (si no se detecta sola)</label>
                 <input type="date" id="qr-vigencia-manual" onchange="guardarVigenciaQrManual(this.value)">
+                <label style="margin-top:10px;">👤 Nombre del titular del QR (si no se detecta solo)</label>
+                <input type="text" id="qr-nombre-manual" placeholder="Ej: SEBASTIAN G.V" onchange="guardarNombreQrManual(this.value)">
             </div>
             <div style="margin-bottom:20px;">
                 <label>🪙 Moneda</label>
@@ -4502,6 +4504,20 @@ function detectarVigenciaQr(texto) {
     return new Date(Number(m[3]), mes, Number(m[1]), 23, 59, 59).getTime();
 }
 
+// Saca el nombre del titular del texto del QR (ej: "SEBASTIAN G.V"), sin números ni palabras de Yape
+function detectarNombreQr(texto) {
+    const malas = /yape|qr|pagar|hasta|vigente|vence|monto|cuenta|celular|escane|bcp|bbva|interbank/i;
+    for (const linea of (texto || '').split('\n')) {
+        const l = linea.trim().replace(/\s+/g, ' ').replace(/\.+$/, '');
+        if (!/^[A-Za-zÁÉÍÓÚÑáéíóúñ][A-Za-zÁÉÍÓÚÑáéíóúñ. ]+$/.test(l)) continue;
+        if (malas.test(l)) continue;
+        const palabras = l.split(' ').filter(Boolean);
+        if (palabras.length < 2 || palabras.length > 5) continue;
+        return l.toUpperCase();
+    }
+    return null;
+}
+
 function redimensionarImagen(file, maxLado, calidad) {
     return new Promise((resolve, reject) => {
         const r = new FileReader();
@@ -4653,7 +4669,9 @@ async function revisarPagoQr() {
                 finalizarVentaDesdeModal();
             } finally {
                 if (estado.ventas.length > antes) {
-                    await supabaseClient.from('pagos_yape').update({ usado: true }).eq('id', hit.id);
+                    const nuevas = estado.ventas.slice(antes);
+                    const compra = nuevas.map(v => `${v.productoNombre} x${v.cantidad}`).join(', ');
+                    await supabaseClient.from('pagos_yape').update({ usado: true, compra: compra, cliente: nuevas[0].cliente || '' }).eq('id', hit.id);
                 }
             }
             return;
@@ -4717,6 +4735,11 @@ async function subirQrYape(input) {
         } else {
             notify('No encontré la fecha. Ponela abajo a mano.', 'error');
         }
+        const nombre = detectarNombreQr(data.text || '');
+        if (nombre && estado.config.qr) {
+            estado.config.qr.nombre = nombre;
+            guardarEstado();
+        }
     } catch (e) {
         notify('No pude leer la fecha. Ponela abajo a mano.', 'error');
     }
@@ -4731,6 +4754,14 @@ function guardarVigenciaQrManual(valor) {
     guardarEstado();
     renderQrConfig();
     notify('✅ Vigencia guardada', 'success');
+}
+
+function guardarNombreQrManual(valor) {
+    if (!estado.config.qr) return;
+    estado.config.qr.nombre = (valor || '').trim().replace(/\s+/g, ' ').toUpperCase() || null;
+    guardarEstado();
+    renderQrConfig();
+    notify('✅ Nombre guardado', 'success');
 }
 
 function eliminarQrYape() {
@@ -4769,6 +4800,8 @@ function renderQrConfig() {
         const pad = n => String(n).padStart(2, '0');
         inp.value = f ? `${f.getFullYear()}-${pad(f.getMonth() + 1)}-${pad(f.getDate())}` : '';
     }
+    const inpNombre = document.getElementById('qr-nombre-manual');
+    if (inpNombre) inpNombre.value = qr && qr.nombre ? qr.nombre : '';
 }
 
 function subirLogo(input) {
