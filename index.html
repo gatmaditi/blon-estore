@@ -4506,7 +4506,8 @@ function detectarVigenciaQr(texto) {
 
 // Saca el nombre del titular del texto del QR (ej: "SEBASTIAN G.V"), sin números ni palabras de Yape
 function detectarNombreQr(texto) {
-    const malas = /yape|qr|pagar|hasta|vigente|vence|monto|cuenta|celular|escane|bcp|bbva|interbank/i;
+    // Palabras de Yape y de sus botones (Editar, Descargar, Compartir...) que no son el nombre
+    const malas = /yape|qr|pagar|hasta|vigente|vence|monto|cuenta|celular|escane|bcp|bbva|interbank|editar|descargar|compartir|otras|formas|cobrar|remesas|agregar|cajeros|dinero|comparte|escanea|\bmi\b/i;
     const letra = 'A-Za-zÁÉÍÓÚÑáéíóúñ';
     const dosLetras = new RegExp(`[${letra}]{2}`);
     const inicial = new RegExp(`^[${letra}]\\.[${letra}]`);
