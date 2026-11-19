@@ -2841,7 +2841,7 @@ async function cargarEstadoDesdeNube() {
         const nube = data.data;
         let local = null;
         try { local = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) { local = null; }
-        const usarLocal = !!(local && (local.ventas || []).length > (nube.ventas || []).length);
+        const usarLocal = !!(local && ((local.modificadoEn || 0) > (nube.modificadoEn || 0) || (local.ventas || []).length > (nube.ventas || []).length));
         sincronizandoDesdeNube = true;
         estado = usarLocal ? local : nube;
         if (!estado.config) estado.config = { nombre: 'Mi Tienda', logo: null, moneda: 'Bs' };
@@ -4138,6 +4138,7 @@ function calcularGoofish() {
 }
 
 function guardarEstado() {
+    estado.modificadoEn = Date.now();
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(estado)); } catch(e) {}
     programarGuardadoEnNube();
 }
@@ -7722,6 +7723,16 @@ document.addEventListener('visibilitychange', () => {
     if (document.hidden && supabaseClient && !sincronizandoDesdeNube) {
         clearTimeout(guardarEnNubeTimeout);
         guardarEnNube();
+    }
+    if (!document.hidden) {
+        try {
+            const l = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+            if (l && (l.modificadoEn || 0) > (estado.modificadoEn || 0)) {
+                estado = l;
+                renderizarVentas();
+                actualizarDashboard();
+            }
+        } catch (e) { /* sin datos locales: no hace nada */ }
     }
 });
 
