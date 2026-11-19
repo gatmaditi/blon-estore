@@ -228,10 +228,8 @@ class MainActivity : Activity() {
         infoNotif.text = p.getString("ultimaNotif", "ninguna todavía")
         infoEnvio.text = p.getString("ultimoEnvio", "ninguno todavía")
 
-        val tienda = p.getString("tiendaNombre", "") ?: ""
-        chipTienda.text = if (tienda.isEmpty()) "Sin tienda" else tienda
-
         val nombre = p.getString("qrNombre", "") ?: ""
+        chipTienda.text = if (nombre.isEmpty()) "Sin QR" else Titular.nombreCorto(nombre)
         if (nombre.isEmpty()) {
             infoTitular.text = "Sin QR cargado en la tienda"
             saludo.text = "Conecta tus pagos de Yape con la tienda"
@@ -326,7 +324,8 @@ class MainActivity : Activity() {
                     desbloqueado = true
                     cargarTodo { ok ->
                         if (ok) {
-                            dlg.dismiss()
+                            msg.text = "✅ Historial cargado"
+                            msg.postDelayed({ dlg.dismiss() }, 1500)
                         } else {
                             msg.text = "❌ No se pudo cargar. Revisa internet y toca Confirmar."
                             msg.setTextColor(colorMal)
@@ -354,17 +353,16 @@ class MainActivity : Activity() {
             var err: String? = null
             var nuevos: List<Pago> = pagos
 
+            // Solo pedimos el nombre del QR (la consulta completa trae las imágenes y es lenta)
             try {
-                val arr = JSONArray(get("estado_tienda?id=eq.tienda_principal&select=data"))
-                val config = arr.optJSONObject(0)?.optJSONObject("data")?.optJSONObject("config")
-                val tienda = config?.optString("nombre", "") ?: ""
-                val nombreQr = config?.optJSONObject("qr")?.optString("nombre", "") ?: ""
+                val arr = JSONArray(get("estado_tienda?id=eq.tienda_principal&select=titular:data->config->qr->nombre"))
+                val valor = arr.optJSONObject(0)?.opt("titular")
+                val nombreQr = if (valor is String) valor else ""
                 getSharedPreferences("estado", MODE_PRIVATE).edit()
-                    .putString("tiendaNombre", tienda)
                     .putString("qrNombre", nombreQr)
                     .apply()
             } catch (e: Exception) {
-                err = "No pude leer los datos de la tienda (revisa internet)."
+                err = "No pude leer el nombre del QR (revisa internet)."
             }
 
             if (desbloqueado) try {
