@@ -4511,21 +4511,34 @@ function detectarNombreQr(texto) {
     const letra = 'A-Za-zÁÉÍÓÚÑáéíóúñ';
     const dosLetras = new RegExp(`[${letra}]{2}`);
     const inicial = new RegExp(`^[${letra}]\\.[${letra}]`);
-    let mejor = null;
-    for (const linea of (texto || '').split('\n')) {
+    const validar = (linea) => {
         // Quita símbolos sueltos (®, *, |) y deja solo letras, puntos y espacios
         const l = linea.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ. ]/g, ' ').replace(/\s+/g, ' ').trim().replace(/\.+$/, '');
-        if (!new RegExp(`^[${letra}][${letra}. ]+$`).test(l)) continue;
-        if (malas.test(l)) continue;
+        if (!new RegExp(`^[${letra}][${letra}. ]+$`).test(l)) return null;
+        if (malas.test(l)) return null;
         const palabras = l.split(' ').filter(Boolean);
-        if (palabras.length < 2 || palabras.length > 5) continue;
+        if (palabras.length < 2 || palabras.length > 5) return null;
         // Cada palabra debe tener 2 letras o ser una inicial con punto (ej: G.V). Así se descartan restos como "Ó E"
-        if (!palabras.every(p => dosLetras.test(p) || inicial.test(p))) continue;
+        if (!palabras.every(p => dosLetras.test(p) || inicial.test(p))) return null;
         const letras = l.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g, '').length;
-        if (letras < 6) continue;
-        if (!mejor || letras > mejor.letras) mejor = { texto: l.toUpperCase(), letras: letras };
+        return letras >= 6 ? l.toUpperCase() : null;
+    };
+    const lineas = (texto || '').split('\n').map(x => x.trim()).filter(Boolean);
+    // El nombre va justo encima de la línea "Válido hasta el ..."; si la encontramos, esa manda
+    const iVig = lineas.findIndex(x => /hast|v[aáe]l[ií]d|vigen|venc/i.test(x));
+    if (iVig > 0) {
+        for (let k = iVig - 1; k >= Math.max(0, iVig - 2); k--) {
+            const n = validar(lineas[k]);
+            if (n) return n;
+        }
     }
-    return mejor ? mejor.texto : null;
+    // Si no, toma el candidato con más letras
+    let mejor = null;
+    for (const linea of lineas) {
+        const n = validar(linea);
+        if (n && (!mejor || n.length > mejor.length)) mejor = n;
+    }
+    return mejor;
 }
 
 function redimensionarImagen(file, maxLado, calidad) {
