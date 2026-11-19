@@ -7,12 +7,22 @@ android {
     namespace = "com.blon.yape"
     compileSdk = 34
 
+    // Clave fija para que cada APK nuevo se pueda instalar encima del anterior
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("../debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.blon.yape"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     buildTypes {
