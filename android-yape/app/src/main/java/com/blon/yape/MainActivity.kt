@@ -64,7 +64,9 @@ class MainActivity : Activity() {
     private lateinit var vinculadoPin: TextView
     private lateinit var saludoPin: TextView
     private lateinit var msgPin: TextView
-    private val casillasPin = ArrayList<EditText>()
+    private val casillasPin = ArrayList<TextView>()
+    private lateinit var campoPin: EditText
+    private lateinit var versionPin: TextView
     private var yendoAActualizar = false
 
     private val colorFondo = Color.parseColor("#121212")
@@ -492,39 +494,41 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
         })
 
+        // Campo invisible: recibe lo que escribes y saca el teclado numérico
+        campoPin = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            filters = arrayOf(InputFilter.LengthFilter(4))
+            alpha = 0f
+            layoutParams = LinearLayout.LayoutParams(dp(1), dp(1))
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {
+                    msgPin.text = ""
+                    pintarCasillas()
+                }
+                override fun afterTextChanged(s: Editable?) {}
+            })
+        }
+        pantalla.addView(campoPin)
+
+        // Las 4 casillas: muestran puntos, o los números si tocas el ojito
         val fila = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(0, dp(18), 0, dp(18))
         }
         for (i in 0 until 4) {
-            val c = EditText(this).apply {
-                inputType = TIPO_OCULTO
-                filters = arrayOf(InputFilter.LengthFilter(1))
-                gravity = Gravity.CENTER
-                textSize = 22f
+            val c = TextView(this).apply {
+                textSize = 24f
                 setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
                     setColor(Color.TRANSPARENT)
                     setStroke(dp(2), Color.parseColor("#E1BEE7"))
                     cornerRadius = dp(10).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(dp(56), dp(62)).apply { setMargins(dp(6), 0, dp(6), 0) }
-                addTextChangedListener(object : TextWatcher {
-                    override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-                    override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {
-                        msgPin.text = ""
-                        if (s != null && s.isNotEmpty() && i < 3) casillasPin[i + 1].requestFocus()
-                    }
-                    override fun afterTextChanged(s: Editable?) {}
-                })
-                setOnKeyListener { _, keyCode, ev ->
-                    if (keyCode == KeyEvent.KEYCODE_DEL && ev.action == KeyEvent.ACTION_DOWN && text.isEmpty() && i > 0) {
-                        casillasPin[i - 1].setText("")
-                        casillasPin[i - 1].requestFocus()
-                        true
-                    } else false
-                }
+                setOnClickListener { pedirTeclado() }
             }
             casillasPin.add(c)
             fila.addView(c)
@@ -537,7 +541,7 @@ class MainActivity : Activity() {
             setOnClickListener {
                 mostrarDigitos = !mostrarDigitos
                 text = if (mostrarDigitos) "🙈" else "👁"
-                casillasPin.forEach { it.inputType = if (mostrarDigitos) InputType.TYPE_CLASS_NUMBER else TIPO_OCULTO }
+                pintarCasillas()
             }
         }
         fila.addView(ojoPin)
@@ -564,6 +568,7 @@ class MainActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 .apply { topMargin = dp(10) }
         })
+
         pantalla.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, 0, 1f) })
         vinculadoPin = TextView(this).apply {
             textSize = 13f
@@ -572,22 +577,57 @@ class MainActivity : Activity() {
             setPadding(0, dp(12), 0, 0)
         }
         pantalla.addView(vinculadoPin)
+        versionPin = TextView(this).apply {
+            textSize = 12f
+            setTextColor(Color.parseColor("#616161"))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(6), 0, 0)
+        }
+        pantalla.addView(versionPin)
         return pantalla
+    }
+
+    // Pinta las 4 casillas según lo escrito y el ojito
+    private fun pintarCasillas() {
+        if (!::campoPin.isInitialized) return
+        val txt = campoPin.text.toString()
+        for (i in 0 until casillasPin.size) {
+            casillasPin[i].text = when {
+                i >= txt.length -> ""
+                mostrarDigitos -> txt[i].toString()
+                else -> "●"
+            }
+        }
+    }
+
+    // Abre el teclado numérico
+    private fun pedirTeclado() {
+        campoPin.requestFocus()
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(campoPin, InputMethodManager.SHOW_IMPLICIT)
     }
 
     // Muestra la pantalla de clave (cada vez que entras a la app)
     private fun pedirPin() {
         pintarSaludoPin()
         mostrarDigitos = false
-        casillasPin.forEach { it.inputType = TIPO_OCULTO }
         ojoPin?.text = "👁"
         val tienda = getSharedPreferences("estado", MODE_PRIVATE).getString("tiendaNombre", "") ?: ""
         vinculadoPin.text = "Vinculado a: ${if (tienda.isEmpty()) "tu tienda" else tienda}"
+        versionPin.text = "Versión ${versionApp()}"
         contenidoPrincipal.visibility = View.GONE
-        casillasPin.forEach { it.setText("") }
         msgPin.text = ""
+        campoPin.setText("")
+        pintarCasillas()
         pantallaPin.visibility = View.VISIBLE
-        casillasPin[0].requestFocus()
+        campoPin.post { pedirTeclado() }
+    }
+
+    // Número de versión instalada (es el número de la compilación)
+    private fun versionApp(): String = try {
+        @Suppress("DEPRECATION")
+        packageManager.getPackageInfo(packageName, 0).versionCode.toString()
+    } catch (e: Exception) {
+        "?"
     }
 
     private fun pintarSaludoPin() {
@@ -604,13 +644,13 @@ class MainActivity : Activity() {
     }
 
     private fun intentarIngresar() {
-        val pin = casillasPin.joinToString("") { it.text.toString() }
+        val pin = campoPin.text.toString()
         when {
             pin.length < 4 -> msgPin.text = "Escribe los 4 dígitos."
             pin != PIN -> {
                 msgPin.text = "❌ Clave incorrecta. Intenta de nuevo."
-                casillasPin.forEach { it.setText("") }
-                casillasPin[0].requestFocus()
+                campoPin.setText("")
+                pintarCasillas()
             }
             else -> {
                 desbloqueado = true
