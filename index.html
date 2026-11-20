@@ -3525,12 +3525,12 @@ function renderizarEstimados() {
             accionHtml = btn('✅ Recogido en Bolivia', `abrirModalRecogido('${e.id}')`, 'btn-verde');
         } else if (st === 'confirmado') {
             icono = '🚚';
-            estadoHtml = badge(`📅 Fecha de recepción registrada · ${calcularDiasDesde(e.timestampConfirmado)} día(s) camino a Bolivia`, 'badge-estado badge-cargado');
+            estadoHtml = badge(`📅 Recepción en importadora registrada · ${calcularDiasDesde(e.timestampConfirmado)} día(s) camino a Bolivia`, 'badge-estado badge-cargado');
             accionHtml = btn('🇧🇴 Llegó a Bolivia', `abrirModalEtapa('${e.id}','llegoBolivia')`, 'btn-verde');
         } else if (st === 'recibidoChile') {
             icono = '📥';
             estadoHtml = badge(`📥 Recibido en Chile · ${calcularDiasDesde(e.timestampRecibidoChile)} día(s) esperando confirmación de la importadora`, 'badge-estado badge-cargado');
-            accionHtml = btn('📅 Fecha de recepción', `abrirModalEtapa('${e.id}','confirmado')`, 'btn-verde');
+            accionHtml = btn('📅 Recepción en importadora', `abrirModalEtapa('${e.id}','confirmado')`, 'btn-verde');
         } else if (st === 'llego') {
             icono = '🇨🇱';
             estadoHtml = badge(`📬 En Correos Chile · ${calcularDiasDesde(e.timestampLlegada)} día(s) esperando la recepción internacional`, 'badge-estado badge-cargado');
@@ -3613,7 +3613,7 @@ const ETAPAS_ESTIMADO = {
     llegoChile:    { flag: 'llegoChile',    ts: 'timestampLlegoChile',    fecha: 'fechaLlegoChile',    titulo: '🇨🇱 Llegó a Chile (track)', ayuda: 'Fecha y hora de tu track en que el paquete llegó a Chile (por ejemplo 2026-11-04 11:43).' },
     llegoCorreos:  { flag: 'llego',         ts: 'timestampLlegada',       fecha: 'fechaLlegada',       titulo: '📬 Llegó a Correos Chile', ayuda: 'Fecha y hora en que el paquete llegó al centro de procesamiento de Correos Chile.' },
     recibidoChile: { flag: 'recibidoChile', ts: 'timestampRecibidoChile', fecha: 'fechaRecibidoChile', titulo: '📥 Recibido en Chile por la importadora', ayuda: 'Fecha y hora en que la importadora lo recibió en Chile.' },
-    confirmado:    { flag: 'confirmado', ts: 'timestampConfirmado', fecha: 'fechaConfirmado', titulo: '📅 Fecha de recepción en la importadora', ayuda: 'Fecha en que la importadora confirmó que el paquete está en su almacén (puede tardar semanas).' },
+    confirmado:    { flag: 'confirmado', ts: 'timestampConfirmado', fecha: 'fechaConfirmado', titulo: '📅 Recepción en importadora', ayuda: 'Fecha en que la importadora confirmó que el paquete está en su almacén (puede tardar semanas).' },
     llegoBolivia:  { flag: 'llegoBolivia',  ts: 'timestampLlegoBolivia',  fecha: 'fechaLlegoBolivia',  titulo: '🇧🇴 Llegó a Bolivia', ayuda: 'Fecha y hora en que el paquete llegó a Bolivia.' }
 };
 const ORDEN_ETAPAS = ['timestampEnvio', 'timestampLlegoChile', 'timestampLlegada', 'timestampRecibidoChile', 'timestampConfirmado', 'timestampLlegoBolivia', 'timestampRecogido'];
@@ -3770,7 +3770,7 @@ function abrirDetalleEstimado(id) {
     }
     if (est.confirmado) {
         filas += dias('⏳ Espera hasta fecha de recepción', calcularDiasEntre(est.timestampRecibidoChile, est.timestampConfirmado));
-        filas += fila('📅 Fecha de recepción', est.fechaConfirmado);
+        filas += fila('📅 Recepción en importadora', est.fechaConfirmado);
     }
     if (est.llegoBolivia) {
         filas += dias('🚚 Importadora → Bolivia', calcularDiasEntre(est.timestampConfirmado || est.timestampRecibidoChile, est.timestampLlegoBolivia));
@@ -3786,7 +3786,7 @@ function abrirDetalleEstimado(id) {
         filas += dias('🕒 Días totales hasta hoy', calcularDiasDesde(est.timestampEnvio));
     }
 
-    const nombresEstado = { sinPagar: '⏸️ Envío sin pagar', envio: '🚚 En camino', llegoChile: '🇨🇱 En Chile (llegó a Chile)', llego: '📬 En Correos Chile', recibidoChile: '📥 Recibido en Chile (esperando confirmación)', confirmado: '📅 Fecha de recepción en importadora (camino a Bolivia)', llegoBolivia: '🇧🇴 En Bolivia (por recoger)', recogido: '✅ Recogido en Bolivia' };
+    const nombresEstado = { sinPagar: '⏸️ Envío sin pagar', envio: '🚚 En camino', llegoChile: '🇨🇱 En Chile (llegó a Chile)', llego: '📬 En Correos Chile', recibidoChile: '📥 Recibido en Chile (esperando confirmación)', confirmado: '📅 Recepción en importadora (camino a Bolivia)', llegoBolivia: '🇧🇴 En Bolivia (por recoger)', recogido: '✅ Recogido en Bolivia' };
     const estadoTxt = nombresEstado[estadoEstimadoActual(est)];
 
     const btnEditar = (cond, etapa, texto) => cond ? `<button class="btn btn-secondary" style="flex:1 1 45%;" onclick="cerrarModalDetalleEstimado(); abrirModalEtapa('${est.id}','${etapa}')">${texto}</button>` : '';
@@ -3845,7 +3845,7 @@ function abrirAyudaEstimado() {
         ['🇨🇱 En Chile', 'El paquete ya llegó a Chile.'],
         ['📬 En Correos Chile', 'Correos Chile tiene el paquete.'],
         ['📥 Recibido en Chile', 'El paquete fue entregado en Chile, en la importadora. Desde esa fecha se cuentan los días de espera.'],
-        ['📅 Fecha de recepción en importadora', 'La importadora registró la fecha de recepción en su página. Desde ahí el paquete sale camino a Bolivia (puede tardar semanas).'],
+        ['📅 Recepción en importadora', 'La importadora registró la recepción del paquete en su página. Desde ahí el paquete sale camino a Bolivia (puede tardar semanas).'],
         ['🇧🇴 En Bolivia', 'El paquete llegó a Bolivia y está por recogerse.'],
         ['✅ Recogido en Bolivia', 'Ya se entregó el paquete. Proceso terminado.']
     ];
@@ -7844,6 +7844,14 @@ document.addEventListener('webkitfullscreenchange', () => {
 // ===== Novedades: se muestran una sola vez por cada cambio nuevo =====
 // Cada vez que se agregue algo nuevo, se pone arriba una entrada nueva con un id distinto.
 const NOVEDADES = [
+    {
+        id: '2026-11-20-estimado',
+        titulo: 'Novedades del sistema',
+        items: [
+            '❓ Estimado de Llegada: nuevo botón ❓ que explica cada etapa del proceso del paquete.',
+            '📅 La etapa de la importadora ahora se llama "Recepción en importadora".',
+        ]
+    },
     {
         id: '2026-11-19-yape',
         titulo: 'Novedades del sistema',
