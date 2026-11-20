@@ -56,6 +56,7 @@ class MainActivity : Activity() {
     private var desbloqueado = false
     private var avisoVisto = false
     private var mostrarDigitos = false
+    private var ojoPin: TextView? = null
     private lateinit var pantallaPin: LinearLayout
     private lateinit var contenidoPrincipal: ScrollView
     private lateinit var vinculadoPin: TextView
@@ -503,6 +504,7 @@ class MainActivity : Activity() {
                 textSize = 22f
                 setTextColor(Color.WHITE)
                 setSingleLine(true)
+                transformationMethod = PasswordTransformationMethod.getInstance()
                 background = GradientDrawable().apply {
                     setColor(Color.TRANSPARENT)
                     setStroke(dp(2), Color.parseColor("#E1BEE7"))
@@ -528,7 +530,7 @@ class MainActivity : Activity() {
             casillasPin.add(c)
             fila.addView(c)
         }
-        fila.addView(TextView(this).apply {
+        ojoPin = TextView(this).apply {
             text = "👁"
             textSize = 22f
             setTextColor(Color.parseColor("#E1BEE7"))
@@ -538,7 +540,8 @@ class MainActivity : Activity() {
                 text = if (mostrarDigitos) "🙈" else "👁"
                 casillasPin.forEach { it.transformationMethod = if (mostrarDigitos) null else PasswordTransformationMethod.getInstance() }
             }
-        })
+        }
+        fila.addView(ojoPin)
         pantalla.addView(fila)
 
         msgPin = TextView(this).apply {
@@ -576,6 +579,9 @@ class MainActivity : Activity() {
     // Muestra la pantalla de clave (cada vez que entras a la app)
     private fun pedirPin() {
         pintarSaludoPin()
+        mostrarDigitos = false
+        casillasPin.forEach { it.transformationMethod = PasswordTransformationMethod.getInstance() }
+        ojoPin?.text = "👁"
         val tienda = getSharedPreferences("estado", MODE_PRIVATE).getString("tiendaNombre", "") ?: ""
         vinculadoPin.text = "Vinculado a: ${if (tienda.isEmpty()) "tu tienda" else tienda}"
         contenidoPrincipal.visibility = View.GONE
