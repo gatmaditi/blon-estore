@@ -71,6 +71,9 @@ class MainActivity : Activity() {
 
     private lateinit var saludo: TextView
     private lateinit var titularTexto: TextView
+    private lateinit var bienvenidaCard: LinearLayout
+    private lateinit var bienvenidaTitulo: TextView
+    private lateinit var bienvenidaSub: TextView
     private lateinit var chipTienda: TextView
     private lateinit var estadoCard: LinearLayout
     private lateinit var infoNotif: TextView
@@ -104,7 +107,7 @@ class MainActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
         izq.addView(texto("Yape Avisos", 24f, colorTexto, true))
-        titularTexto = texto("", 16f, colorTexto, true)
+        titularTexto = texto("", 16f, Color.parseColor("#4ADE80"), true)
         izq.addView(titularTexto)
         saludo = texto("", 14f, colorSuave)
         izq.addView(saludo)
@@ -130,6 +133,43 @@ class MainActivity : Activity() {
         cab.addView(chip)
         raiz.addView(cab)
         raiz.addView(espacio(14))
+
+        // Tarjeta de bienvenida (solo la primera vez)
+        bienvenidaCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(20), dp(24), dp(20), dp(20))
+            background = redondeado(Color.parseColor("#4A148C"), 18)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                .apply { bottomMargin = dp(14) }
+        }
+        bienvenidaTitulo = TextView(this).apply {
+            textSize = 24f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+        }
+        bienvenidaSub = TextView(this).apply {
+            textSize = 14f
+            setTextColor(Color.parseColor("#E1BEE7"))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(16))
+        }
+        bienvenidaCard.addView(bienvenidaTitulo)
+        bienvenidaCard.addView(bienvenidaSub)
+        bienvenidaCard.addView(Button(this).apply {
+            text = "Empezar"
+            isAllCaps = false
+            setTextColor(Color.parseColor("#4A148C"))
+            background = redondeado(Color.WHITE, 10)
+            setOnClickListener {
+                getSharedPreferences("estado", MODE_PRIVATE).edit().putBoolean("bienvenidaVista", true).apply()
+                pintarEstado()
+            }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        })
+        bienvenidaCard.visibility = View.GONE
+        raiz.addView(bienvenidaCard)
 
         // Aviso de nueva versión (oculto hasta que haya una)
         bannerCard = tarjeta(colorAzul)
@@ -389,12 +429,21 @@ class MainActivity : Activity() {
         if (nombre.isEmpty()) {
             infoTitular.text = "Sin QR cargado en la tienda"
             saludo.text = "Conecta tus pagos de Yape con la tienda"
+            bienvenidaCard.visibility = View.GONE
         } else {
             infoTitular.text = Titular.nombreCorto(nombre)
             val primero = Titular.primerNombre(nombre)
-            val yaVio = p.getBoolean("bienvenidaVista", false)
-            saludo.text = if (yaVio) "Bienvenido de nuevo $primero" else "Bienvenido $primero"
-            if (!yaVio) p.edit().putBoolean("bienvenidaVista", true).apply()
+            if (p.getBoolean("bienvenidaVista", false)) {
+                // Ya la viste: solo un saludo chico
+                bienvenidaCard.visibility = View.GONE
+                saludo.text = "Bienvenido de nuevo, $primero"
+            } else {
+                // Primera vez: tarjeta de bienvenida grande
+                bienvenidaCard.visibility = View.VISIBLE
+                bienvenidaTitulo.text = "¡Bienvenido, $primero! 👋"
+                bienvenidaSub.text = "Tus pagos de Yape quedan conectados a ${if (tienda.isEmpty()) "tu tienda" else tienda}."
+                saludo.text = ""
+            }
         }
     }
 
@@ -474,20 +523,10 @@ class MainActivity : Activity() {
                     casillas[0].requestFocus()
                 }
                 else -> {
-                    msg.text = "✅ PIN correcto. Cargando historial..."
-                    msg.setTextColor(colorOk)
-                    confirmar.isEnabled = false
+                    // Se cierra enseguida; la carga se ve en la pantalla principal
                     desbloqueado = true
-                    cargarTodo { ok ->
-                        if (ok) {
-                            msg.text = "✅ Historial cargado"
-                            msg.postDelayed({ dlg.dismiss() }, 800)
-                        } else {
-                            msg.text = "❌ No se pudo cargar. Revisa internet y toca Confirmar."
-                            msg.setTextColor(colorMal)
-                            confirmar.isEnabled = true
-                        }
-                    }
+                    dlg.dismiss()
+                    cargarTodo(null)
                 }
             }
         }
