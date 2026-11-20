@@ -2,6 +2,8 @@ package com.blon.yape
 
 import android.app.Activity
 import android.app.DownloadManager
+import android.content.ComponentName
+import android.service.notification.NotificationListenerService
 import android.app.Dialog
 import android.content.Intent
 import android.net.Uri
@@ -211,6 +213,7 @@ class MainActivity : Activity() {
         })
         raiz.addView(boton("Actualizar") { cargarTodo(null) })
         raiz.addView(boton("Buscar actualización") { buscarActualizacion(false) })
+        raiz.addView(boton("Revisar avisos de Yape") { revisarAvisos() })
 
         val info = tarjeta(colorTarjeta)
         info.addView(texto("Última notificación de Yape", 12f, colorSuave, true))
@@ -257,6 +260,7 @@ class MainActivity : Activity() {
         super.onResume()
         yendoAActualizar = false
         Thread { Pendientes.reenviar(applicationContext) }.start()
+        revisarAvisos()
         if (!::lista.isInitialized) return
         if (!desbloqueado) pedirPin()
         cargarTodo(null)
@@ -299,6 +303,13 @@ class MainActivity : Activity() {
                 }
             }
         }.start()
+    }
+
+    // Vuelve a revisar los avisos de Yape que siguen en la barra de notificaciones
+    private fun revisarAvisos() {
+        try {
+            NotificationListenerService.requestRebind(ComponentName(this, YapeListener::class.java))
+        } catch (e: Exception) { /* sin permiso o servicio apagado */ }
     }
 
     // Abre la página "Nueva actualización" (una pantalla normal de la app)
