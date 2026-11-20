@@ -57,6 +57,8 @@ class MainActivity : Activity() {
     private var avisoVisto = false
     private var mostrarDigitos = false
     private var ojoPin: TextView? = null
+    // Tipo de teclado que oculta los dígitos (puntos); el ojito cambia a numérico normal para verlos
+    private val TIPO_OCULTO = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
     private lateinit var pantallaPin: LinearLayout
     private lateinit var contenidoPrincipal: ScrollView
     private lateinit var vinculadoPin: TextView
@@ -497,14 +499,11 @@ class MainActivity : Activity() {
         }
         for (i in 0 until 4) {
             val c = EditText(this).apply {
-                inputType = InputType.TYPE_CLASS_NUMBER
-                transformationMethod = PasswordTransformationMethod.getInstance()
+                inputType = TIPO_OCULTO
                 filters = arrayOf(InputFilter.LengthFilter(1))
                 gravity = Gravity.CENTER
                 textSize = 22f
                 setTextColor(Color.WHITE)
-                setSingleLine(true)
-                transformationMethod = PasswordTransformationMethod.getInstance()
                 background = GradientDrawable().apply {
                     setColor(Color.TRANSPARENT)
                     setStroke(dp(2), Color.parseColor("#E1BEE7"))
@@ -538,7 +537,7 @@ class MainActivity : Activity() {
             setOnClickListener {
                 mostrarDigitos = !mostrarDigitos
                 text = if (mostrarDigitos) "🙈" else "👁"
-                casillasPin.forEach { it.transformationMethod = if (mostrarDigitos) null else PasswordTransformationMethod.getInstance() }
+                casillasPin.forEach { it.inputType = if (mostrarDigitos) InputType.TYPE_CLASS_NUMBER else TIPO_OCULTO }
             }
         }
         fila.addView(ojoPin)
@@ -580,7 +579,7 @@ class MainActivity : Activity() {
     private fun pedirPin() {
         pintarSaludoPin()
         mostrarDigitos = false
-        casillasPin.forEach { it.transformationMethod = PasswordTransformationMethod.getInstance() }
+        casillasPin.forEach { it.inputType = TIPO_OCULTO }
         ojoPin?.text = "👁"
         val tienda = getSharedPreferences("estado", MODE_PRIVATE).getString("tiendaNombre", "") ?: ""
         vinculadoPin.text = "Vinculado a: ${if (tienda.isEmpty()) "tu tienda" else tienda}"
