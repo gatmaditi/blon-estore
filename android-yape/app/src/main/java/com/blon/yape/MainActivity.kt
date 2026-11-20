@@ -306,6 +306,15 @@ class MainActivity : Activity() {
             quitar()
             alMasTarde?.invoke()
         })
+        // Ancho fijo: toda la pantalla menos los márgenes, y cada texto/botón ocupa todo el ancho
+        caja.minimumWidth = resources.displayMetrics.widthPixels - dp(32)
+        for (i in 0 until caja.childCount) {
+            val v = caja.getChildAt(i)
+            if (v is TextView) {
+                v.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    .apply { bottomMargin = if (v is Button) dp(10) else 0 }
+            }
+        }
         fondo.addView(caja)
         addContentView(fondo, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
     }
