@@ -24,6 +24,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -276,15 +277,20 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    // Aviso de actualización: una tarjeta encima de la pantalla (sin ventana de Android, para que no salga angosta)
     private fun mostrarDialogoActualizar(a: Actualizacion, alMasTarde: (() -> Unit)? = null) {
-        val dlg = Dialog(this)
-        dlg.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dlg.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        val fondo = FrameLayout(this).apply {
+            setBackgroundColor(Color.parseColor("#B3000000"))
+            isClickable = true
+        }
+        fun quitar() { (fondo.parent as? ViewGroup)?.removeView(fondo) }
+
         val caja = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(22), dp(22), dp(18))
             background = redondeado(colorTarjeta, 18)
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
+                .apply { setMargins(dp(16), 0, dp(16), 0) }
         }
         caja.addView(texto("🆕 Nueva actualización", 18f, colorTexto, true))
         caja.addView(texto("Versión ${a.build} lista para instalar.", 14f, colorSuave))
@@ -293,16 +299,15 @@ class MainActivity : Activity() {
         }
         caja.addView(espacio(10))
         caja.addView(boton("Actualizar ahora") {
-            dlg.setOnDismissListener(null)
-            dlg.dismiss()
+            quitar()
             descargarActualizacion(a)
         })
-        caja.addView(boton("Más tarde") { dlg.dismiss() })
-        // Cerrarla de cualquier forma (Más tarde o tocando afuera) sigue al PIN
-        dlg.setOnDismissListener { alMasTarde?.invoke() }
-        dlg.setContentView(caja)
-        dlg.window?.setLayout(resources.displayMetrics.widthPixels - dp(32), ViewGroup.LayoutParams.WRAP_CONTENT)
-        dlg.show()
+        caja.addView(boton("Más tarde") {
+            quitar()
+            alMasTarde?.invoke()
+        })
+        fondo.addView(caja)
+        addContentView(fondo, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
     }
 
     // Descarga el APK con el gestor de descargas del celular y abre el instalador al terminar
