@@ -7814,8 +7814,45 @@ document.addEventListener('webkitfullscreenchange', () => {
     }
 });
 
+// ===== Novedades: se muestran una sola vez por cada cambio nuevo =====
+// Cada vez que se agregue algo nuevo, se pone arriba una entrada nueva con un id distinto.
+const NOVEDADES = [
+    {
+        id: '2026-11-19-yape',
+        titulo: 'Novedades del sistema',
+        items: [
+            '💵 Pagos de Yape: ahora guardan el nombre de quien pagó y qué compró.',
+            '👤 QR: el sistema detecta solo el nombre del titular al subir el QR.',
+            '📱 Yape Avisos: nuevo historial con buscador, PIN y actualización automática desde la app.',
+        ]
+    },
+];
+
+function mostrarNovedades() {
+    const ultima = NOVEDADES[0];
+    if (!ultima) return;
+    let vista = null;
+    try { vista = localStorage.getItem('novedadVista'); } catch (e) { /* sin acceso al almacenamiento */ }
+    if (vista === ultima.id) return;
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:999999;padding:16px;';
+    ov.innerHTML = `<div style="background:#000;border:1px solid #222736;border-radius:18px;padding:22px;max-width:440px;width:100%;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.6);">
+        <div style="font-size:18px;font-weight:bold;color:#ffaa00;margin-bottom:12px;">🆕 ${ultima.titulo}</div>
+        <ul style="padding-left:18px;margin:0 0 18px;color:#e5e7eb;font-size:14px;line-height:1.5;">
+            ${ultima.items.map(i => `<li style="margin-bottom:8px;">${i}</li>`).join('')}
+        </ul>
+        <button id="btn-novedad-ok" style="width:100%;padding:12px;border:none;border-radius:10px;background:#ffaa00;color:#000;font-weight:bold;font-size:15px;cursor:pointer;">Entendido</button>
+    </div>`;
+    document.body.appendChild(ov);
+    document.getElementById('btn-novedad-ok').onclick = () => {
+        try { localStorage.setItem('novedadVista', ultima.id); } catch (e) { /* ignorar */ }
+        ov.remove();
+    };
+}
+
 if (verificarSesion()) {
     inicializar();
+    setTimeout(mostrarNovedades, 2000);
 }
 </script>
 </body>
