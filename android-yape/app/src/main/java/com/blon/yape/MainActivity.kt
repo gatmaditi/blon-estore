@@ -53,6 +53,10 @@ class MainActivity : Activity() {
     private var errorCarga: String? = null
     private var desbloqueado = false
     private var avisoVisto = false
+    private lateinit var pantallaPin: LinearLayout
+    private lateinit var saludoPin: TextView
+    private lateinit var msgPin: TextView
+    private val casillasPin = ArrayList<EditText>()
     private var yendoAActualizar = false
 
     private val colorFondo = Color.parseColor("#121212")
@@ -98,7 +102,11 @@ class MainActivity : Activity() {
             setPadding(dp(16), dp(20), dp(16), dp(20))
         }
         scroll.addView(raiz)
-        setContentView(scroll)
+        val root = FrameLayout(this)
+        root.addView(scroll)
+        pantallaPin = construirPantallaPin()
+        root.addView(pantallaPin)
+        setContentView(root)
 
         // Encabezado: título y saludo a la izquierda; tienda vinculada a la derecha
         val cab = LinearLayout(this).apply {
@@ -445,96 +453,130 @@ class MainActivity : Activity() {
         }
     }
 
-    // Ventana oscura con 4 casillas para el PIN
-    private fun pedirPin() {
-        val dlg = Dialog(this)
-        dlg.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dlg.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-
-        val caja = LinearLayout(this).apply {
+    // Pantalla de clave: se muestra cada vez que entras a la app, antes de la información
+    private fun construirPantallaPin(): LinearLayout {
+        val morado = Color.parseColor("#6A1B9A")
+        val verde = Color.parseColor("#26A69A")
+        val pantalla = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(22), dp(22), dp(18))
-            background = redondeado(colorTarjeta, 18)
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            gravity = Gravity.CENTER_HORIZONTAL
+            setBackgroundColor(morado)
+            setPadding(dp(24), dp(40), dp(24), dp(24))
+            layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
-        caja.addView(texto("🔒 Cargar historial", 18f, colorTexto, true))
-        caja.addView(texto("Escribe tu PIN de 4 dígitos", 14f, colorSuave))
+        pantalla.addView(TextView(this).apply {
+            text = "Yape Avisos"
+            textSize = 16f
+            setTextColor(Color.parseColor("#E1BEE7"))
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setPadding(0, dp(20), 0, 0)
+        })
+        saludoPin = TextView(this).apply {
+            textSize = 24f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setPadding(0, dp(40), 0, dp(30))
+        }
+        pantalla.addView(saludoPin)
+        pantalla.addView(TextView(this).apply {
+            text = "Ingresa tu clave"
+            textSize = 15f
+            setTextColor(Color.parseColor("#E1BEE7"))
+            gravity = Gravity.CENTER
+        })
 
         val fila = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(0, dp(16), 0, dp(12))
+            setPadding(0, dp(18), 0, dp(18))
         }
-        val casillas = ArrayList<EditText>()
-        val msg = texto("", 14f, colorMal)
-
         for (i in 0 until 4) {
             val c = EditText(this).apply {
                 inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
                 filters = arrayOf(InputFilter.LengthFilter(1))
                 gravity = Gravity.CENTER
                 textSize = 22f
-                setTextColor(colorTexto)
-                setHintTextColor(colorSuave)
+                setTextColor(Color.WHITE)
                 setSingleLine(true)
                 background = GradientDrawable().apply {
-                    setColor(colorBoton)
-                    setStroke(dp(2), colorSuave)
+                    setColor(Color.TRANSPARENT)
+                    setStroke(dp(2), Color.parseColor("#E1BEE7"))
                     cornerRadius = dp(10).toFloat()
                 }
-                layoutParams = LinearLayout.LayoutParams(dp(54), dp(62)).apply { setMargins(dp(6), 0, dp(6), 0) }
+                layoutParams = LinearLayout.LayoutParams(dp(56), dp(62)).apply { setMargins(dp(6), 0, dp(6), 0) }
                 addTextChangedListener(object : TextWatcher {
                     override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                     override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {
-                        msg.text = ""
-                        if (s != null && s.isNotEmpty() && i < 3) casillas[i + 1].requestFocus()
+                        msgPin.text = ""
+                        if (s != null && s.isNotEmpty() && i < 3) casillasPin[i + 1].requestFocus()
                     }
                     override fun afterTextChanged(s: Editable?) {}
                 })
                 setOnKeyListener { _, keyCode, ev ->
-                    // Borrar en una casilla vacía regresa a la anterior
                     if (keyCode == KeyEvent.KEYCODE_DEL && ev.action == KeyEvent.ACTION_DOWN && text.isEmpty() && i > 0) {
-                        casillas[i - 1].setText("")
-                        casillas[i - 1].requestFocus()
+                        casillasPin[i - 1].setText("")
+                        casillasPin[i - 1].requestFocus()
                         true
                     } else false
                 }
             }
-            casillas.add(c)
+            casillasPin.add(c)
             fila.addView(c)
         }
-        caja.addView(fila)
-        caja.addView(msg)
+        pantalla.addView(fila)
 
-        val confirmar = boton("Confirmar") {}
-        confirmar.setOnClickListener {
-            val pin = casillas.joinToString("") { it.text.toString() }
-            when {
-                pin.length < 4 -> {
-                    msg.text = "Escribe los 4 dígitos."
-                    msg.setTextColor(colorMal)
-                }
-                pin != PIN -> {
-                    msg.text = "❌ PIN incorrecto. Intenta de nuevo."
-                    msg.setTextColor(colorMal)
-                    casillas.forEach { it.setText("") }
-                    casillas[0].requestFocus()
-                }
-                else -> {
-                    // Se cierra enseguida; la carga se ve en la pantalla principal
-                    desbloqueado = true
-                    dlg.dismiss()
-                    cargarTodo(null)
-                }
+        msgPin = TextView(this).apply {
+            textSize = 14f
+            setTextColor(Color.parseColor("#FFCDD2"))
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, dp(10))
+        }
+        pantalla.addView(msgPin)
+
+        pantalla.addView(Button(this).apply {
+            text = "Ingresar"
+            isAllCaps = false
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                setColor(verde)
+                cornerRadius = dp(12).toFloat()
+            }
+            setOnClickListener { intentarIngresar() }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                .apply { topMargin = dp(10) }
+        })
+        pantalla.visibility = View.GONE
+        return pantalla
+    }
+
+    // Muestra la pantalla de clave (cada vez que entras a la app)
+    private fun pedirPin() {
+        val nombre = getSharedPreferences("estado", MODE_PRIVATE).getString("qrNombre", "") ?: ""
+        saludoPin.text = if (nombre.isEmpty()) "¡Bienvenid@!" else "¡Bienvenid@ ${Titular.primerNombre(nombre)}!"
+        casillasPin.forEach { it.setText("") }
+        msgPin.text = ""
+        pantallaPin.visibility = View.VISIBLE
+        casillasPin[0].requestFocus()
+    }
+
+    private fun intentarIngresar() {
+        val pin = casillasPin.joinToString("") { it.text.toString() }
+        when {
+            pin.length < 4 -> msgPin.text = "Escribe los 4 dígitos."
+            pin != PIN -> {
+                msgPin.text = "❌ Clave incorrecta. Intenta de nuevo."
+                casillasPin.forEach { it.setText("") }
+                casillasPin[0].requestFocus()
+            }
+            else -> {
+                desbloqueado = true
+                pantallaPin.visibility = View.GONE
+                cargarTodo(null)
             }
         }
-        caja.addView(confirmar)
-        caja.addView(boton("Cancelar") { dlg.dismiss() })
-
-        dlg.setContentView(caja)
-        dlg.window?.setLayout(resources.displayMetrics.widthPixels - dp(32), ViewGroup.LayoutParams.WRAP_CONTENT)
-        dlg.show()
-        casillas[0].requestFocus()
     }
 
     // Trae de Supabase el nombre de la tienda, el titular del QR y, si ya desbloqueaste, el historial de pagos.
