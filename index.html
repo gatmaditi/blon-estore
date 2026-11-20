@@ -3525,7 +3525,7 @@ function renderizarEstimados() {
             accionHtml = btn('✅ Recogido en Bolivia', `abrirModalRecogido('${e.id}')`, 'btn-verde');
         } else if (st === 'confirmado') {
             icono = '🚚';
-            estadoHtml = badge(`📅 Recepción en importadora · ${calcularDiasDesde(e.timestampConfirmado)} día(s) camino a Bolivia`, 'badge-estado badge-cargado');
+            estadoHtml = badge(`📅 Recepción en importadora hace ${calcularDiasDesde(e.timestampConfirmado)} día(s) · camino a Bolivia`, 'badge-estado badge-cargado');
             accionHtml = btn('🇧🇴 Llegó a Bolivia', `abrirModalEtapa('${e.id}','llegoBolivia')`, 'btn-verde');
         } else if (st === 'recibidoChile') {
             icono = '📥';
@@ -3769,7 +3769,7 @@ function abrirDetalleEstimado(id) {
         filas += fila('📥 Recibido en Chile por importadora', est.fechaRecibidoChile);
     }
     if (est.confirmado) {
-        filas += dias('⏳ Espera hasta recepción en importadora', calcularDiasEntre(est.timestampRecibidoChile, est.timestampConfirmado));
+        filas += dias('⏳ Tardó en la importadora', calcularDiasEntre(est.timestampRecibidoChile, est.timestampConfirmado));
         filas += fila('📅 Recepción en importadora', est.fechaConfirmado);
     }
     if (est.llegoBolivia) {
