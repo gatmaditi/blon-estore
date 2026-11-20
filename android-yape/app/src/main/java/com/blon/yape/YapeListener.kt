@@ -16,6 +16,8 @@ class YapeListener : NotificationListenerService() {
 
     // Grupo 1: nombre de quien paga. Grupo 2: monto.
     private val regex = Regex("([\\p{L} .]+?)\\s+te envi[oó]\\s+Bs\\.?\\s*([0-9]+(?:[.,][0-9]{1,2})?)", RegexOption.IGNORE_CASE)
+    // Otro formato de Yape: "Acabas de recibir Bs. 15.00 en tu Yape" (no trae el nombre)
+    private val regexRecibir = Regex("recibir\\s+Bs\\.?\\s*([0-9]+(?:[.,][0-9]{1,2})?)", RegexOption.IGNORE_CASE)
     private val prefijos = Regex("^(yape\\s+)?(qr\\s+de\\s+)?", RegexOption.IGNORE_CASE)
 
     // Evita procesar dos veces la misma notificación (misma clave de Android)
@@ -40,7 +42,8 @@ class YapeListener : NotificationListenerService() {
             .joinToString(" ") { extras.getCharSequence(it)?.toString() ?: "" }
 
         val m = regex.find(texto)
-        if (m == null) {
+        val mRecibir = if (m == null) regexRecibir.find(texto) else null
+        if (m == null && mRecibir == null) {
             if (texto.contains("yape", ignoreCase = true)) {
                 estado().edit().putString("ultimaNotif", hora() + " · Yape, pero no es un pago: " + texto.take(120)).apply()
             }
@@ -48,8 +51,9 @@ class YapeListener : NotificationListenerService() {
         }
         estado().edit().putString("ultimaNotif", hora() + " · " + texto.take(120)).apply()
 
-        val monto = m.groupValues[2].replace(',', '.').toDoubleOrNull() ?: return
-        val nombre = m.groupValues[1].trim().replace(prefijos, "").trim()
+        val montoTxt = if (m != null) m.groupValues[2] else mRecibir!!.groupValues[1]
+        val monto = montoTxt.replace(',', '.').toDoubleOrNull() ?: return
+        val nombre = if (m != null) m.groupValues[1].trim().replace(prefijos, "").trim() else ""
 
         val ahora = System.currentTimeMillis()
         textosRecientes.entries.removeAll { ahora - it.value > 60_000 }
