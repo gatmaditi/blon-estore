@@ -70,6 +70,7 @@ class MainActivity : Activity() {
     private lateinit var bannerTexto: TextView
 
     private lateinit var saludo: TextView
+    private lateinit var titularTexto: TextView
     private lateinit var chipTienda: TextView
     private lateinit var estadoCard: LinearLayout
     private lateinit var infoNotif: TextView
@@ -103,6 +104,8 @@ class MainActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
         izq.addView(texto("Yape Avisos", 24f, colorTexto, true))
+        titularTexto = texto("", 16f, colorTexto, true)
+        izq.addView(titularTexto)
         saludo = texto("", 14f, colorSuave)
         izq.addView(saludo)
         cab.addView(izq)
@@ -190,7 +193,17 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::lista.isInitialized) cargarTodo(null)
+        if (!::lista.isInitialized) return
+        cargarTodo(null)
+        // Cada vez que entras a la app, pide el PIN para mostrar el historial
+        if (!desbloqueado) pedirPin()
+    }
+
+    // Al salir de la app, el historial vuelve a quedar bloqueado
+    override fun onStop() {
+        super.onStop()
+        desbloqueado = false
+        if (::lista.isInitialized) pintarHistorial()
     }
 
     // Busca una versión nueva en GitHub. Automático: avisa una vez por versión. Manual: siempre responde.
@@ -370,7 +383,9 @@ class MainActivity : Activity() {
         infoEnvio.text = p.getString("ultimoEnvio", "ninguno todavía")
 
         val nombre = p.getString("qrNombre", "") ?: ""
-        chipTienda.text = if (nombre.isEmpty()) "Sin QR" else Titular.nombreCorto(nombre)
+        val tienda = p.getString("tiendaNombre", "") ?: ""
+        chipTienda.text = if (tienda.isEmpty()) "Sin tienda" else tienda
+        titularTexto.text = if (nombre.isEmpty()) "" else Titular.nombreCorto(nombre)
         if (nombre.isEmpty()) {
             infoTitular.text = "Sin QR cargado en la tienda"
             saludo.text = "Conecta tus pagos de Yape con la tienda"
@@ -466,7 +481,7 @@ class MainActivity : Activity() {
                     cargarTodo { ok ->
                         if (ok) {
                             msg.text = "✅ Historial cargado"
-                            msg.postDelayed({ dlg.dismiss() }, 1500)
+                            msg.postDelayed({ dlg.dismiss() }, 800)
                         } else {
                             msg.text = "❌ No se pudo cargar. Revisa internet y toca Confirmar."
                             msg.setTextColor(colorMal)
@@ -496,11 +511,13 @@ class MainActivity : Activity() {
 
             // Solo pedimos el nombre del QR (la consulta completa trae las imágenes y es lenta)
             try {
-                val arr = JSONArray(get("estado_tienda?id=eq.tienda_principal&select=titular:data->config->qr->nombre"))
-                val valor = arr.optJSONObject(0)?.opt("titular")
-                val nombreQr = if (valor is String) valor else ""
+                val arr = JSONArray(get("estado_tienda?id=eq.tienda_principal&select=titular:data->config->qr->nombre,tienda:data->config->nombre"))
+                val fila = arr.optJSONObject(0)
+                val nombreQr = fila?.opt("titular")?.let { if (it is String) it else "" } ?: ""
+                val nombreTienda = fila?.opt("tienda")?.let { if (it is String) it else "" } ?: ""
                 getSharedPreferences("estado", MODE_PRIVATE).edit()
                     .putString("qrNombre", nombreQr)
+                    .putString("tiendaNombre", nombreTienda)
                     .apply()
             } catch (e: Exception) {
                 err = "No pude leer el nombre del QR (revisa internet)."
