@@ -301,6 +301,7 @@ class MainActivity : Activity() {
         // Cerrarla de cualquier forma (Más tarde o tocando afuera) sigue al PIN
         dlg.setOnDismissListener { alMasTarde?.invoke() }
         dlg.setContentView(caja)
+        dlg.window?.setLayout(resources.displayMetrics.widthPixels - dp(32), ViewGroup.LayoutParams.WRAP_CONTENT)
         dlg.show()
     }
 
@@ -540,6 +541,7 @@ class MainActivity : Activity() {
         caja.addView(boton("Cancelar") { dlg.dismiss() })
 
         dlg.setContentView(caja)
+        dlg.window?.setLayout(resources.displayMetrics.widthPixels - dp(32), ViewGroup.LayoutParams.WRAP_CONTENT)
         dlg.show()
         casillas[0].requestFocus()
     }
