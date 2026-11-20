@@ -54,6 +54,8 @@ class MainActivity : Activity() {
     private var desbloqueado = false
     private var avisoVisto = false
     private lateinit var pantallaPin: LinearLayout
+    private lateinit var contenidoPrincipal: ScrollView
+    private lateinit var vinculadoPin: TextView
     private lateinit var saludoPin: TextView
     private lateinit var msgPin: TextView
     private val casillasPin = ArrayList<EditText>()
@@ -102,6 +104,8 @@ class MainActivity : Activity() {
             setPadding(dp(16), dp(20), dp(16), dp(20))
         }
         scroll.addView(raiz)
+        contenidoPrincipal = scroll
+        contenidoPrincipal.visibility = View.GONE
         val root = FrameLayout(this)
         root.addView(scroll)
         pantallaPin = construirPantallaPin()
@@ -455,12 +459,12 @@ class MainActivity : Activity() {
 
     // Pantalla de clave: se muestra cada vez que entras a la app, antes de la información
     private fun construirPantallaPin(): LinearLayout {
-        val morado = Color.parseColor("#6A1B9A")
+        val negro = Color.parseColor("#000000")
         val verde = Color.parseColor("#26A69A")
         val pantalla = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setBackgroundColor(morado)
+            setBackgroundColor(negro)
             setPadding(dp(24), dp(40), dp(24), dp(24))
             layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
@@ -548,7 +552,14 @@ class MainActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 .apply { topMargin = dp(10) }
         })
-        pantalla.visibility = View.GONE
+        pantalla.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, 0, 1f) })
+        vinculadoPin = TextView(this).apply {
+            textSize = 13f
+            setTextColor(Color.parseColor("#9E9E9E"))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(12), 0, 0)
+        }
+        pantalla.addView(vinculadoPin)
         return pantalla
     }
 
@@ -556,6 +567,9 @@ class MainActivity : Activity() {
     private fun pedirPin() {
         val nombre = getSharedPreferences("estado", MODE_PRIVATE).getString("qrNombre", "") ?: ""
         saludoPin.text = if (nombre.isEmpty()) "¡Bienvenid@!" else "¡Bienvenid@ ${Titular.primerNombre(nombre)}!"
+        val tienda = getSharedPreferences("estado", MODE_PRIVATE).getString("tiendaNombre", "") ?: ""
+        vinculadoPin.text = "Vinculado a: ${if (tienda.isEmpty()) "tu tienda" else tienda}"
+        contenidoPrincipal.visibility = View.GONE
         casillasPin.forEach { it.setText("") }
         msgPin.text = ""
         pantallaPin.visibility = View.VISIBLE
@@ -574,6 +588,7 @@ class MainActivity : Activity() {
             else -> {
                 desbloqueado = true
                 pantallaPin.visibility = View.GONE
+                contenidoPrincipal.visibility = View.VISIBLE
                 cargarTodo(null)
             }
         }
