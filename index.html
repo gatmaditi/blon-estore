@@ -3522,12 +3522,12 @@ function renderizarEstimados() {
             accionHtml = btn('✅ Recogido en Bolivia', `abrirModalRecogido('${e.id}')`, 'btn-verde');
         } else if (st === 'confirmado') {
             icono = '🚚';
-            estadoHtml = badge(`✅ Confirmado por importadora · ${calcularDiasDesde(e.timestampConfirmado)} día(s) camino a Bolivia`, 'badge-estado badge-cargado');
+            estadoHtml = badge(`📅 Fecha de recepción registrada · ${calcularDiasDesde(e.timestampConfirmado)} día(s) camino a Bolivia`, 'badge-estado badge-cargado');
             accionHtml = btn('🇧🇴 Llegó a Bolivia', `abrirModalEtapa('${e.id}','llegoBolivia')`, 'btn-verde');
         } else if (st === 'recibidoChile') {
             icono = '📥';
             estadoHtml = badge(`📥 Recibido en Chile · ${calcularDiasDesde(e.timestampRecibidoChile)} día(s) esperando confirmación de la importadora`, 'badge-estado badge-cargado');
-            accionHtml = btn('✅ Confirmación importadora', `abrirModalEtapa('${e.id}','confirmado')`, 'btn-verde');
+            accionHtml = btn('📅 Fecha de recepción', `abrirModalEtapa('${e.id}','confirmado')`, 'btn-verde');
         } else if (st === 'llego') {
             icono = '🇨🇱';
             estadoHtml = badge(`📬 En Correos Chile · ${calcularDiasDesde(e.timestampLlegada)} día(s) esperando la recepción internacional`, 'badge-estado badge-cargado');
@@ -3610,7 +3610,7 @@ const ETAPAS_ESTIMADO = {
     llegoChile:    { flag: 'llegoChile',    ts: 'timestampLlegoChile',    fecha: 'fechaLlegoChile',    titulo: '🇨🇱 Llegó a Chile (track)', ayuda: 'Fecha y hora de tu track en que el paquete llegó a Chile (por ejemplo 2026-11-04 11:43).' },
     llegoCorreos:  { flag: 'llego',         ts: 'timestampLlegada',       fecha: 'fechaLlegada',       titulo: '📬 Llegó a Correos Chile', ayuda: 'Fecha y hora en que el paquete llegó al centro de procesamiento de Correos Chile.' },
     recibidoChile: { flag: 'recibidoChile', ts: 'timestampRecibidoChile', fecha: 'fechaRecibidoChile', titulo: '📥 Recibido en Chile por la importadora', ayuda: 'Fecha y hora en que la importadora lo recibió en Chile.' },
-    confirmado:    { flag: 'confirmado', ts: 'timestampConfirmado', fecha: 'fechaConfirmado', titulo: '✅ Confirmación de la importadora', ayuda: 'Fecha en que la importadora confirmó que el paquete está en su almacén (puede tardar semanas).' },
+    confirmado:    { flag: 'confirmado', ts: 'timestampConfirmado', fecha: 'fechaConfirmado', titulo: '📅 Fecha de recepción en la importadora', ayuda: 'Fecha en que la importadora confirmó que el paquete está en su almacén (puede tardar semanas).' },
     llegoBolivia:  { flag: 'llegoBolivia',  ts: 'timestampLlegoBolivia',  fecha: 'fechaLlegoBolivia',  titulo: '🇧🇴 Llegó a Bolivia', ayuda: 'Fecha y hora en que el paquete llegó a Bolivia.' }
 };
 const ORDEN_ETAPAS = ['timestampEnvio', 'timestampLlegoChile', 'timestampLlegada', 'timestampRecibidoChile', 'timestampConfirmado', 'timestampLlegoBolivia', 'timestampRecogido'];
@@ -3766,8 +3766,8 @@ function abrirDetalleEstimado(id) {
         filas += fila('📥 Recibido en Chile por importadora', est.fechaRecibidoChile);
     }
     if (est.confirmado) {
-        filas += dias('⏳ Espera de confirmación importadora', calcularDiasEntre(est.timestampRecibidoChile, est.timestampConfirmado));
-        filas += fila('✅ Confirmado por importadora', est.fechaConfirmado);
+        filas += dias('⏳ Espera hasta fecha de recepción', calcularDiasEntre(est.timestampRecibidoChile, est.timestampConfirmado));
+        filas += fila('📅 Fecha de recepción', est.fechaConfirmado);
     }
     if (est.llegoBolivia) {
         filas += dias('🚚 Importadora → Bolivia', calcularDiasEntre(est.timestampConfirmado || est.timestampRecibidoChile, est.timestampLlegoBolivia));
@@ -3783,7 +3783,7 @@ function abrirDetalleEstimado(id) {
         filas += dias('🕒 Días totales hasta hoy', calcularDiasDesde(est.timestampEnvio));
     }
 
-    const nombresEstado = { sinPagar: '⏸️ Envío sin pagar', envio: '🚚 En camino', llegoChile: '🇨🇱 En Chile (llegó a Chile)', llego: '📬 En Correos Chile', recibidoChile: '📥 Recibido en Chile (esperando confirmación)', confirmado: '✅ Confirmado por importadora (camino a Bolivia)', llegoBolivia: '🇧🇴 En Bolivia (por recoger)', recogido: '✅ Recogido en Bolivia' };
+    const nombresEstado = { sinPagar: '⏸️ Envío sin pagar', envio: '🚚 En camino', llegoChile: '🇨🇱 En Chile (llegó a Chile)', llego: '📬 En Correos Chile', recibidoChile: '📥 Recibido en Chile (esperando confirmación)', confirmado: '📅 Fecha de recepción en importadora (camino a Bolivia)', llegoBolivia: '🇧🇴 En Bolivia (por recoger)', recogido: '✅ Recogido en Bolivia' };
     const estadoTxt = nombresEstado[estadoEstimadoActual(est)];
 
     const btnEditar = (cond, etapa, texto) => cond ? `<button class="btn btn-secondary" style="flex:1 1 45%;" onclick="cerrarModalDetalleEstimado(); abrirModalEtapa('${est.id}','${etapa}')">${texto}</button>` : '';
