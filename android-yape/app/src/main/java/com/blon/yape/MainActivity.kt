@@ -695,8 +695,8 @@ class MainActivity : Activity() {
                     val o = arr.getJSONObject(i)
                     Pago(
                         monto = o.optDouble("monto", 0.0),
-                        nombre = o.optString("nombre", ""),
-                        compra = o.optString("compra", ""),
+                        nombre = if (o.isNull("nombre")) "" else o.optString("nombre", ""),
+                        compra = if (o.isNull("compra")) "" else o.optString("compra", ""),
                         creado = formatoFecha(o.optString("creado", "")),
                         usado = o.optBoolean("usado", false)
                     )
