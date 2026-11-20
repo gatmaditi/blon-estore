@@ -18,6 +18,8 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
+import android.text.method.PasswordTransformationMethod
+import android.view.inputmethod.InputMethodManager
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
@@ -53,6 +55,7 @@ class MainActivity : Activity() {
     private var errorCarga: String? = null
     private var desbloqueado = false
     private var avisoVisto = false
+    private var mostrarDigitos = false
     private lateinit var pantallaPin: LinearLayout
     private lateinit var contenidoPrincipal: ScrollView
     private lateinit var vinculadoPin: TextView
@@ -249,16 +252,11 @@ class MainActivity : Activity() {
         super.onResume()
         yendoAActualizar = false
         if (!::lista.isInitialized) return
+        if (!desbloqueado) pedirPin()
         cargarTodo(null)
-        if (avisoVisto) {
-            if (!desbloqueado) pedirPin()
-            return
-        }
-        // Primero revisa si hay actualización: si la hay, se abre su página; si no, pide el PIN
-        buscarActualizacion(true) { mostro ->
-            avisoVisto = true
-            if (!mostro && !desbloqueado) pedirPin()
-        }
+        if (avisoVisto) return
+        // Revisa si hay actualización en segundo plano; si la hay, su página sale encima
+        buscarActualizacion(true) { _ -> avisoVisto = true }
     }
 
     // Al salir de la app, el historial vuelve a quedar bloqueado
@@ -498,7 +496,8 @@ class MainActivity : Activity() {
         }
         for (i in 0 until 4) {
             val c = EditText(this).apply {
-                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+                inputType = InputType.TYPE_CLASS_NUMBER
+                transformationMethod = PasswordTransformationMethod.getInstance()
                 filters = arrayOf(InputFilter.LengthFilter(1))
                 gravity = Gravity.CENTER
                 textSize = 22f
@@ -529,6 +528,17 @@ class MainActivity : Activity() {
             casillasPin.add(c)
             fila.addView(c)
         }
+        fila.addView(TextView(this).apply {
+            text = "👁"
+            textSize = 22f
+            setTextColor(Color.parseColor("#E1BEE7"))
+            setPadding(dp(8), 0, 0, 0)
+            setOnClickListener {
+                mostrarDigitos = !mostrarDigitos
+                text = if (mostrarDigitos) "🙈" else "👁"
+                casillasPin.forEach { it.transformationMethod = if (mostrarDigitos) null else PasswordTransformationMethod.getInstance() }
+            }
+        })
         pantalla.addView(fila)
 
         msgPin = TextView(this).apply {
@@ -565,8 +575,7 @@ class MainActivity : Activity() {
 
     // Muestra la pantalla de clave (cada vez que entras a la app)
     private fun pedirPin() {
-        val nombre = getSharedPreferences("estado", MODE_PRIVATE).getString("qrNombre", "") ?: ""
-        saludoPin.text = if (nombre.isEmpty()) "¡Bienvenid@!" else "¡Bienvenid@ ${Titular.primerNombre(nombre)}!"
+        pintarSaludoPin()
         val tienda = getSharedPreferences("estado", MODE_PRIVATE).getString("tiendaNombre", "") ?: ""
         vinculadoPin.text = "Vinculado a: ${if (tienda.isEmpty()) "tu tienda" else tienda}"
         contenidoPrincipal.visibility = View.GONE
@@ -574,6 +583,19 @@ class MainActivity : Activity() {
         msgPin.text = ""
         pantallaPin.visibility = View.VISIBLE
         casillasPin[0].requestFocus()
+    }
+
+    private fun pintarSaludoPin() {
+        if (!::saludoPin.isInitialized) return
+        val nombre = getSharedPreferences("estado", MODE_PRIVATE).getString("qrNombre", "") ?: ""
+        saludoPin.text = if (nombre.isEmpty()) "¡Bienvenid@!" else "¡Bienvenid@ ${Titular.primerNombre(nombre)}!"
+    }
+
+    // Cierra el teclado para que no se quede abierto
+    private fun ocultarTeclado() {
+        val v = currentFocus ?: window.decorView
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(v.windowToken, 0)
+        v.clearFocus()
     }
 
     private fun intentarIngresar() {
@@ -587,6 +609,7 @@ class MainActivity : Activity() {
             }
             else -> {
                 desbloqueado = true
+                ocultarTeclado()
                 pantallaPin.visibility = View.GONE
                 contenidoPrincipal.visibility = View.VISIBLE
                 cargarTodo(null)
@@ -640,6 +663,7 @@ class MainActivity : Activity() {
                 pagos = listaFinal
                 errorCarga = errFinal
                 pintarEstado()
+                pintarSaludoPin()
                 pintarHistorial()
                 if (errFinal == null) {
                     cargaTexto.setTextColor(colorOk)
