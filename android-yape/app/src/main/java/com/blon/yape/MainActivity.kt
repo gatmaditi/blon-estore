@@ -52,6 +52,8 @@ class MainActivity : Activity() {
     private var pagos: List<Pago> = emptyList()
     private var errorCarga: String? = null
     private var desbloqueado = false
+    private var avisoVisto = false
+    private var yendoAActualizar = false
 
     private val colorFondo = Color.parseColor("#121212")
     private val colorTarjeta = Color.parseColor("#1E1E24")
@@ -233,17 +235,28 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        yendoAActualizar = false
         if (!::lista.isInitialized) return
         cargarTodo(null)
-        // Primero revisa si hay actualización (su ventana sale encima de todo).
-        // Si no hay, o la cierras con "Más tarde", pide el PIN.
-        buscarActualizacion(true) { mostro -> if (!mostro && !desbloqueado) pedirPin() }
+        if (avisoVisto) {
+            if (!desbloqueado) pedirPin()
+            return
+        }
+        // Primero revisa si hay actualización: si la hay, se abre su página; si no, pide el PIN
+        buscarActualizacion(true) { mostro ->
+            avisoVisto = true
+            if (!mostro && !desbloqueado) pedirPin()
+        }
     }
 
     // Al salir de la app, el historial vuelve a quedar bloqueado
     override fun onStop() {
         super.onStop()
-        desbloqueado = false
+        // Si solo fuimos a la página de actualización, no bloqueamos nada
+        if (!yendoAActualizar) {
+            desbloqueado = false
+            avisoVisto = false
+        }
         if (::lista.isInitialized) pintarHistorial()
     }
 
@@ -265,58 +278,22 @@ class MainActivity : Activity() {
                     bannerCard.background = redondeado(colorAzul, 14)
                     bannerTexto.text = "🆕 Nueva versión disponible. Toca aquí para actualizar"
                     bannerCard.visibility = View.VISIBLE
-                    if (automatico) {
-                        // Sale cada vez que abres la app, hasta que actualices
-                        mostrarDialogoActualizar(nueva) { if (!desbloqueado) pedirPin() }
-                        alTerminar?.invoke(true)
-                    } else {
-                        alTerminar?.invoke(false)
-                    }
+                    mostrarDialogoActualizar(nueva)
+                    alTerminar?.invoke(true)
                 }
             }
         }.start()
     }
 
-    // Aviso de actualización: una tarjeta encima de la pantalla (sin ventana de Android, para que no salga angosta)
+    // Abre la página "Nueva actualización" (una pantalla normal de la app)
     private fun mostrarDialogoActualizar(a: Actualizacion, alMasTarde: (() -> Unit)? = null) {
-        val fondo = FrameLayout(this).apply {
-            setBackgroundColor(Color.parseColor("#B3000000"))
-            isClickable = true
-        }
-        fun quitar() { (fondo.parent as? ViewGroup)?.removeView(fondo) }
-
-        val caja = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(22), dp(22), dp(18))
-            background = redondeado(colorTarjeta, 18)
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
-                .apply { setMargins(dp(16), 0, dp(16), 0) }
-        }
-        caja.addView(texto("🆕 Nueva actualización", 18f, colorTexto, true))
-        caja.addView(texto("Versión ${a.build} lista para instalar.", 14f, colorSuave))
-        if (a.notas.isNotBlank()) {
-            caja.addView(texto("Cambios:\n" + a.notas.trim().take(400), 13f, colorTexto))
-        }
-        caja.addView(espacio(10))
-        caja.addView(boton("Actualizar ahora") {
-            quitar()
-            descargarActualizacion(a)
-        })
-        caja.addView(boton("Más tarde") {
-            quitar()
-            alMasTarde?.invoke()
-        })
-        // Ancho fijo: toda la pantalla menos los márgenes, y cada texto/botón ocupa todo el ancho
-        caja.minimumWidth = resources.displayMetrics.widthPixels - dp(32)
-        for (i in 0 until caja.childCount) {
-            val v = caja.getChildAt(i)
-            if (v is TextView) {
-                v.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                    .apply { bottomMargin = if (v is Button) dp(10) else 0 }
-            }
-        }
-        fondo.addView(caja)
-        addContentView(fondo, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        yendoAActualizar = true
+        startActivity(
+            Intent(this, ActualizarActivity::class.java)
+                .putExtra("build", a.build)
+                .putExtra("notas", a.notas)
+                .putExtra("apk", a.apkUrl)
+        )
     }
 
     // Descarga el APK con el gestor de descargas del celular y abre el instalador al terminar
