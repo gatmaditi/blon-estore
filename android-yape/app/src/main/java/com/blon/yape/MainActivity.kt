@@ -228,15 +228,15 @@ class MainActivity : Activity() {
 
         pintarEstado()
         pintarHistorial()
-        buscarActualizacion(true)
     }
 
     override fun onResume() {
         super.onResume()
         if (!::lista.isInitialized) return
         cargarTodo(null)
-        // Cada vez que entras a la app, pide el PIN para mostrar el historial
-        if (!desbloqueado) pedirPin()
+        // Primero revisa si hay actualización (su ventana sale encima de todo).
+        // Si no hay, o la cierras con "Más tarde", pide el PIN.
+        buscarActualizacion(true) { mostro -> if (!mostro && !desbloqueado) pedirPin() }
     }
 
     // Al salir de la app, el historial vuelve a quedar bloqueado
@@ -247,7 +247,7 @@ class MainActivity : Activity() {
     }
 
     // Busca una versión nueva en GitHub. Automático: avisa una vez por versión. Manual: siempre responde.
-    private fun buscarActualizacion(automatico: Boolean) {
+    private fun buscarActualizacion(automatico: Boolean, alTerminar: ((Boolean) -> Unit)? = null) {
         Thread {
             val instalada = try {
                 @Suppress("DEPRECATION")
@@ -259,21 +259,24 @@ class MainActivity : Activity() {
                 if (nueva == null) {
                     bannerCard.visibility = View.GONE
                     if (!automatico) Toast.makeText(this, "✅ Ya tienes la versión más reciente", Toast.LENGTH_SHORT).show()
+                    alTerminar?.invoke(false)
                 } else {
                     bannerCard.background = redondeado(colorAzul, 14)
                     bannerTexto.text = "🆕 Nueva versión disponible. Toca aquí para actualizar"
                     bannerCard.visibility = View.VISIBLE
-                    val prefs = getSharedPreferences("estado", MODE_PRIVATE)
-                    if (automatico && prefs.getInt("avisoBuild", 0) != nueva.build) {
-                        prefs.edit().putInt("avisoBuild", nueva.build).apply()
-                        mostrarDialogoActualizar(nueva)
+                    if (automatico) {
+                        // Sale cada vez que abres la app, hasta que actualices
+                        mostrarDialogoActualizar(nueva) { if (!desbloqueado) pedirPin() }
+                        alTerminar?.invoke(true)
+                    } else {
+                        alTerminar?.invoke(false)
                     }
                 }
             }
         }.start()
     }
 
-    private fun mostrarDialogoActualizar(a: Actualizacion) {
+    private fun mostrarDialogoActualizar(a: Actualizacion, alMasTarde: (() -> Unit)? = null) {
         val dlg = Dialog(this)
         dlg.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dlg.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
@@ -290,10 +293,13 @@ class MainActivity : Activity() {
         }
         caja.addView(espacio(10))
         caja.addView(boton("Actualizar ahora") {
+            dlg.setOnDismissListener(null)
             dlg.dismiss()
             descargarActualizacion(a)
         })
         caja.addView(boton("Más tarde") { dlg.dismiss() })
+        // Cerrarla de cualquier forma (Más tarde o tocando afuera) sigue al PIN
+        dlg.setOnDismissListener { alMasTarde?.invoke() }
         dlg.setContentView(caja)
         dlg.show()
     }
