@@ -2433,7 +2433,10 @@
         <div class="card">
             <div class="pedido-header">
                 <h2>⏳ Estimado de Llegada</h2>
-                <button class="btn btn-azul" onclick="abrirModalAgregarEstimado()">➕ Agregar</button>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-secondary" title="¿Qué significa cada etapa?" onclick="abrirAyudaEstimado()">❓</button>
+                    <button class="btn btn-azul" onclick="abrirModalAgregarEstimado()">➕ Agregar</button>
+                </div>
             </div>
             <p style="color:#666; font-size:11px; margin:0 0 15px;">ℹ️ Acá solo se cuentan los días que tarda en llegar cada paquete. No toca el inventario ni el stock de nada.</p>
             <div id="lista-estimado"></div>
@@ -3832,6 +3835,30 @@ function abrirDetalleEstimado(id) {
 
 function cerrarModalDetalleEstimado() {
     document.getElementById('modalDetalleEstimado').classList.remove('active');
+}
+
+// Muestra todas las etapas del proceso de llegada, con lo que significa cada una
+function abrirAyudaEstimado() {
+    const etapas = [
+        ['🧾 Envío sin pagar', 'El paquete está registrado, pero todavía no se pagó el envío.'],
+        ['🚚 En camino', 'El paquete salió de su origen y viene hacia Chile.'],
+        ['🇨🇱 En Chile', 'El paquete ya llegó a Chile.'],
+        ['📬 En Correos Chile', 'Correos Chile tiene el paquete.'],
+        ['📥 Recibido en Chile', 'La importadora recibió el paquete en Chile. Ahí se pone la fecha de recepción; el contador cuenta los días que espera.'],
+        ['📅 Fecha de recepción en importadora', 'La importadora confirmó la fecha de recepción en su página. El paquete va camino a Bolivia (puede tardar semanas).'],
+        ['🇧🇴 En Bolivia', 'El paquete llegó a Bolivia y está por recogerse.'],
+        ['✅ Recogido en Bolivia', 'Ya se entregó el paquete. Proceso terminado.']
+    ];
+    document.getElementById('detalle-estimado-titulo').textContent = '❓ Proceso de llegada';
+    document.getElementById('detalle-estimado-contenido').innerHTML =
+        '<p style="color:#888; font-size:12px; margin:0 0 12px;">Así avanza un paquete, de arriba hacia abajo:</p>' +
+        etapas.map((e, i) =>
+            `<div style="padding:10px 0; border-bottom:1px solid #2a2a2a;">
+                <div style="font-weight:600;">${i + 1}. ${e[0]}</div>
+                <div style="color:#aaa; font-size:12px; margin-top:3px;">${e[1]}</div>
+            </div>`
+        ).join('');
+    document.getElementById('modalDetalleEstimado').classList.add('active');
 }
 
 function eliminarEstimado(id) {
