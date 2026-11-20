@@ -256,6 +256,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         yendoAActualizar = false
+        Thread { Pendientes.reenviar(applicationContext) }.start()
         if (!::lista.isInitialized) return
         if (!desbloqueado) pedirPin()
         cargarTodo(null)
@@ -433,7 +434,9 @@ class MainActivity : Activity() {
         ))
 
         infoNotif.text = p.getString("ultimaNotif", "ninguna todavía")
-        infoEnvio.text = p.getString("ultimoEnvio", "ninguno todavía")
+        val pendientes = Pendientes.cantidad(this)
+        infoEnvio.text = (p.getString("ultimoEnvio", "ninguno todavía") ?: "") +
+            (if (pendientes > 0) "\n⏳ Pendientes por enviar: $pendientes" else "")
 
         val nombre = p.getString("qrNombre", "") ?: ""
         val tienda = p.getString("tiendaNombre", "") ?: ""

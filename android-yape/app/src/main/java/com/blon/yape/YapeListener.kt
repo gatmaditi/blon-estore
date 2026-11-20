@@ -23,6 +23,11 @@ class YapeListener : NotificationListenerService() {
     // Evita duplicados: mismo texto exacto (incluye el nombre de quien paga) en menos de 60 s
     private val textosRecientes = HashMap<String, Long>()
 
+    // Al conectarse el servicio, reenvía los pagos que quedaron pendientes
+    override fun onListenerConnected() {
+        Thread { Pendientes.reenviar(applicationContext) }.start()
+    }
+
     private fun estado() = getSharedPreferences("estado", MODE_PRIVATE)
     private fun hora() = SimpleDateFormat("dd/MM HH:mm:ss", Locale.US).format(Date())
 
@@ -74,6 +79,8 @@ class YapeListener : NotificationListenerService() {
             if (resultado == "Enviado") break
         }
         registrar(monto, resultado, nombre)
+        // Si no se pudo mandar, queda guardado y se reenvía después
+        if (resultado != "Enviado") Pendientes.guardar(this, monto, nombre)
     }
 
     private fun intentarEnvio(monto: Double, nombre: String): String = try {
