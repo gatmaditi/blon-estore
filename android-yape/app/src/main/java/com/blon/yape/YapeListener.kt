@@ -23,6 +23,8 @@ class YapeListener : NotificationListenerService() {
     private val clavesVistas = LinkedHashSet<String>()
     // Evita duplicados: mismo texto exacto en menos de 60 s
     private val textosRecientes = HashMap<String, Long>()
+    // Cuántos pagos nuevos se encontraron en la última revisión de la barra
+    private var cargadosEnRevision = 0
 
     private fun estado() = getSharedPreferences("estado", MODE_PRIVATE)
     private fun hora() = SimpleDateFormat("dd/MM HH:mm:ss", Locale.US).format(Date())
@@ -35,12 +37,20 @@ class YapeListener : NotificationListenerService() {
 
     fun revisarAvisosActivos() {
         val ahora = System.currentTimeMillis()
-        val activas = try { activeNotifications } catch (e: Exception) { null } ?: return
-        for (sbn in activas) {
-            // Solo avisos de las últimas 6 horas
-            if (ahora - sbn.postTime > 6 * 60 * 60 * 1000L) continue
-            procesar(sbn, desdeRevision = true)
+        cargadosEnRevision = 0
+        val activas = try { activeNotifications } catch (e: Exception) { null }
+        if (activas != null) {
+            for (sbn in activas) {
+                // Solo avisos de las últimas 6 horas
+                if (ahora - sbn.postTime > 6 * 60 * 60 * 1000L) continue
+                procesar(sbn, desdeRevision = true)
+            }
         }
+        // Deja constancia del resultado para que la app lo muestre
+        estado().edit()
+            .putLong("revisionHora", System.currentTimeMillis())
+            .putInt("revisionCantidad", cargadosEnRevision)
+            .apply()
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
@@ -90,6 +100,7 @@ class YapeListener : NotificationListenerService() {
         }
         textosRecientes[texto] = ahora
 
+        if (desdeRevision) cargadosEnRevision++
         Thread { guardarPago(monto, nombre) }.start()
     }
 

@@ -8,6 +8,8 @@ import android.app.Dialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import java.io.File
 import android.graphics.Color
@@ -213,7 +215,7 @@ class MainActivity : Activity() {
         })
         raiz.addView(boton("Actualizar") { cargarTodo(null) })
         raiz.addView(boton("Buscar actualización") { buscarActualizacion(false) })
-        raiz.addView(boton("Revisar avisos de Yape") { revisarAvisos() })
+        raiz.addView(boton("Revisar avisos de Yape") { revisarAvisos(true) })
 
         val info = tarjeta(colorTarjeta)
         info.addView(texto("Última notificación de Yape", 12f, colorSuave, true))
@@ -305,11 +307,23 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    // Vuelve a revisar los avisos de Yape que siguen en la barra de notificaciones
-    private fun revisarAvisos() {
+    // Vuelve a revisar los avisos de Yape que siguen en la barra de notificaciones.
+    // Con mostrarResultado (botón) avisa si cargó algo nuevo o no había nada.
+    private fun revisarAvisos(mostrarResultado: Boolean = false) {
+        val inicio = System.currentTimeMillis()
         try {
             NotificationListenerService.requestRebind(ComponentName(this, YapeListener::class.java))
         } catch (e: Exception) { /* sin permiso o servicio apagado */ }
+        if (!mostrarResultado) return
+        Toast.makeText(this, "🔎 Buscando avisos de Yape...", Toast.LENGTH_SHORT).show()
+        Handler(Looper.getMainLooper()).postDelayed({
+            val p = getSharedPreferences("estado", MODE_PRIVATE)
+            val hora = p.getLong("revisionHora", 0L)
+            val n = p.getInt("revisionCantidad", 0)
+            val msg = if (hora >= inicio && n > 0) "✅ Se cargó $n aviso(s) de pago nuevo(s)"
+                      else "No hay avisos nuevos"
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+        }, 3500)
     }
 
     // Abre la página "Nueva actualización" (una pantalla normal de la app)
