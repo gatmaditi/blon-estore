@@ -1715,6 +1715,9 @@
         <span class="icon">⏳</span> Estimado
         <span class="badge" id="sidebar-estimado-count">0</span>
     </div>
+    <div class="sidebar-item" onclick="navegarA('tendencias')">
+        <span class="icon">🔎</span> Tendencias
+    </div>
     <div class="sidebar-item" onclick="navegarA('cotizacion')">
         <span class="icon">💲</span> Cotización
     </div>
@@ -2440,6 +2443,22 @@
             </div>
             <p style="color:#666; font-size:11px; margin:0 0 15px;">ℹ️ Acá solo se cuentan los días que tarda en llegar cada paquete. No toca el inventario ni el stock de nada.</p>
             <div id="lista-estimado"></div>
+        </div>
+    </div>
+
+    <div id="seccion-tendencias" class="seccion">
+        <div class="card">
+            <div class="pedido-header">
+                <h2>🔎 Buscar Tendencias</h2>
+            </div>
+            <p style="color:#666; font-size:11px; margin:0 0 15px;">ℹ️ Abre en una pestaña nueva lo que está de moda. No guarda ni cambia nada.</p>
+            <input type="text" id="tendencia-busqueda" value="skimask nike" placeholder="¿Qué quieres buscar?"
+                style="width:100%; box-sizing:border-box; background:#111; color:#fff; border:1px solid #333; border-radius:8px; padding:10px; font-size:14px;">
+            <div style="display:flex; flex-direction:column; gap:10px; margin-top:14px;">
+                <button class="btn btn-azul" onclick="abrirTendencias('trends')">📈 Google Trends (Bolivia)</button>
+                <button class="btn btn-azul" onclick="abrirTendencias('tiktok')">🎵 Videos en TikTok</button>
+                <button class="btn btn-azul" onclick="abrirTendencias('marketplace')">🛒 Facebook Marketplace</button>
+            </div>
         </div>
     </div>
 
@@ -3837,6 +3856,18 @@ function cerrarModalDetalleEstimado() {
     document.getElementById('modalDetalleEstimado').classList.remove('active');
 }
 
+// Abre en una pestaña nueva la búsqueda elegida. No guarda nada.
+function abrirTendencias(donde) {
+    const q = (document.getElementById('tendencia-busqueda').value || '').trim();
+    if (!q) { notify('❌ Escribí qué quieres buscar', 'error'); return; }
+    const enlaces = {
+        trends: `https://trends.google.com/trends/explore?geo=BO&q=${encodeURIComponent(q)}`,
+        tiktok: `https://www.tiktok.com/search?q=${encodeURIComponent(q)}`,
+        marketplace: `https://www.facebook.com/marketplace/search/?query=${encodeURIComponent(q)}`
+    };
+    window.open(enlaces[donde], '_blank', 'noopener');
+}
+
 // Muestra todas las etapas del proceso de llegada, con lo que significa cada una
 function abrirAyudaEstimado() {
     const etapas = [
@@ -4211,6 +4242,7 @@ function navegarA(seccion) {
         agregar: '➕ Agregar Productos',
         ventas: '💰 Ventas', 
         estimado: '⏳ Estimado de Llegada',
+        tendencias: '🔎 Buscar Tendencias',
         cotizacion: '💲 Cotización',
         logros: '🏆 Logros y Metas',
         pagosyape: '💳 Pagos Yape',
@@ -7844,6 +7876,13 @@ document.addEventListener('webkitfullscreenchange', () => {
 // ===== Novedades: se muestran una sola vez por cada cambio nuevo =====
 // Cada vez que se agregue algo nuevo, se pone arriba una entrada nueva con un id distinto.
 const NOVEDADES = [
+    {
+        id: '2026-11-21-tendencias',
+        titulo: 'Novedades del sistema',
+        items: [
+            '🔎 Nueva sección Tendencias: busca un producto en Google Trends, TikTok y Facebook Marketplace con un toque.',
+        ]
+    },
     {
         id: '2026-11-20-estimado',
         titulo: 'Novedades del sistema',
