@@ -3863,7 +3863,7 @@ function abrirTendencias(donde) {
     if (!q) { notify('❌ Escribí qué quieres buscar', 'error'); return; }
     const enlaces = {
         trends: `https://trends.google.com/trends/explore?geo=BO&q=${encodeURIComponent(q)}`,
-        trendsMundo: `https://trends.google.com/trends/explore?q=${encodeURIComponent(q)}`,
+        trendsMundo: `https://trends.google.com/trends/explore?geo=&q=${encodeURIComponent(q)}`,
         tiktok: `https://www.tiktok.com/tag/${encodeURIComponent(q.toLowerCase().replace(/\s+/g, ''))}`,
         marketplace: `https://www.facebook.com/marketplace/search/?query=${encodeURIComponent(q)}`
     };
