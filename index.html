@@ -2452,7 +2452,7 @@
                 <h2>🔎 Buscar Tendencias</h2>
             </div>
             <p style="color:#666; font-size:11px; margin:0 0 15px;">ℹ️ Abre en una pestaña nueva lo que está de moda. No guarda ni cambia nada.</p>
-            <input type="text" id="tendencia-busqueda" value="skimask nike" placeholder="¿Qué quieres buscar?"
+            <input type="text" id="tendencia-busqueda" value="skimask" placeholder="¿Qué quieres buscar?"
                 style="width:100%; box-sizing:border-box; background:#111; color:#fff; border:1px solid #333; border-radius:8px; padding:10px; font-size:14px;">
             <div style="display:flex; flex-direction:column; gap:10px; margin-top:14px;">
                 <button class="btn btn-azul" onclick="abrirTendencias('trends')">📈 Google Trends (Bolivia)</button>
@@ -3862,7 +3862,7 @@ function abrirTendencias(donde) {
     if (!q) { notify('❌ Escribí qué quieres buscar', 'error'); return; }
     const enlaces = {
         trends: `https://trends.google.com/trends/explore?geo=BO&q=${encodeURIComponent(q)}`,
-        tiktok: `https://www.tiktok.com/search?q=${encodeURIComponent(q)}`,
+        tiktok: `https://www.tiktok.com/tag/${encodeURIComponent(q.toLowerCase().replace(/\s+/g, ''))}`,
         marketplace: `https://www.facebook.com/marketplace/search/?query=${encodeURIComponent(q)}`
     };
     window.open(enlaces[donde], '_blank', 'noopener');
