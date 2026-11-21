@@ -2452,8 +2452,12 @@
                 <h2>🔎 Buscar Tendencias</h2>
             </div>
             <p style="color:#666; font-size:11px; margin:0 0 15px;">ℹ️ Abre en una pestaña nueva lo que está de moda. No guarda ni cambia nada.</p>
-            <input type="text" id="tendencia-busqueda" value="skimask" placeholder="¿Qué quieres buscar?"
-                style="width:100%; box-sizing:border-box; background:#111; color:#fff; border:1px solid #333; border-radius:8px; padding:10px; font-size:14px;">
+            <div style="display:flex; gap:8px; align-items:center;">
+                <input type="text" id="tendencia-busqueda" value="skimask" placeholder="¿Qué quieres buscar?"
+                    style="flex:1; min-width:0; box-sizing:border-box; background:#111; color:#fff; border:1px solid #333; border-radius:8px; padding:10px; font-size:14px;">
+                <button id="btn-fav-tend" class="btn btn-secondary" title="Guardar como favorita" onclick="alternarFavoritoTendencia()">☆</button>
+            </div>
+            <div id="favoritos-tendencias" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;"></div>
             <div style="display:flex; flex-direction:column; gap:10px; margin-top:14px;">
                 <button class="btn btn-azul" onclick="abrirTendencias('trends')">📈 Google Trends (Bolivia)</button>
                 <button class="btn btn-azul" onclick="abrirTendencias('trendsMundo')">🌎 Google Trends (mundo)</button>
@@ -3870,6 +3874,70 @@ function abrirTendencias(donde) {
     window.open(enlaces[donde], '_blank', 'noopener');
 }
 
+// Búsquedas: la última queda guardada sola y las favoritas (⭐) se guardan en este navegador
+const TEND_KEY_ULTIMA = 'tendenciaUltima';
+const TEND_KEY_FAVS = 'tendenciasFavoritas';
+function leerLS(k, def) { try { const v = JSON.parse(localStorage.getItem(k)); return v === null ? def : v; } catch (e) { return def; } }
+function guardarLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sin acceso al almacenamiento */ } }
+
+function iniciarTendencias() {
+    const input = document.getElementById('tendencia-busqueda');
+    const ultima = leerLS(TEND_KEY_ULTIMA, null);
+    if (ultima) input.value = ultima;
+    input.oninput = () => { guardarLS(TEND_KEY_ULTIMA, input.value); pintarFavoritosTendencias(); };
+    pintarFavoritosTendencias();
+}
+
+function pintarFavoritosTendencias() {
+    const q = document.getElementById('tendencia-busqueda').value.trim();
+    const favs = leerLS(TEND_KEY_FAVS, []);
+    document.getElementById('btn-fav-tend').textContent = favs.includes(q) ? '⭐' : '☆';
+    const cont = document.getElementById('favoritos-tendencias');
+    cont.innerHTML = '';
+    if (!favs.length) {
+        const aviso = document.createElement('span');
+        aviso.style.cssText = 'color:#666; font-size:12px;';
+        aviso.textContent = 'Aún no tienes favoritas. Toca ☆ para guardar una búsqueda.';
+        cont.appendChild(aviso);
+        return;
+    }
+    favs.forEach(f => {
+        const chip = document.createElement('div');
+        chip.style.cssText = 'display:flex; align-items:center; gap:4px; background:#1a1a1a; border:1px solid #333; border-radius:20px; padding:4px 6px 4px 12px;';
+        const nombre = document.createElement('span');
+        nombre.textContent = '⭐ ' + f;
+        nombre.style.cursor = 'pointer';
+        nombre.onclick = () => usarFavoritoTendencia(f);
+        const quitar = document.createElement('span');
+        quitar.textContent = '✕';
+        quitar.style.cssText = 'cursor:pointer; color:#888; padding:0 4px;';
+        quitar.onclick = () => quitarFavoritoTendencia(f);
+        chip.append(nombre, quitar);
+        cont.appendChild(chip);
+    });
+}
+
+function alternarFavoritoTendencia() {
+    const q = document.getElementById('tendencia-busqueda').value.trim();
+    if (!q) { notify('❌ Escribí una búsqueda para guardarla', 'error'); return; }
+    let favs = leerLS(TEND_KEY_FAVS, []);
+    favs = favs.includes(q) ? favs.filter(f => f !== q) : [...favs, q];
+    guardarLS(TEND_KEY_FAVS, favs);
+    pintarFavoritosTendencias();
+}
+
+function usarFavoritoTendencia(f) {
+    const input = document.getElementById('tendencia-busqueda');
+    input.value = f;
+    guardarLS(TEND_KEY_ULTIMA, f);
+    pintarFavoritosTendencias();
+}
+
+function quitarFavoritoTendencia(f) {
+    guardarLS(TEND_KEY_FAVS, leerLS(TEND_KEY_FAVS, []).filter(x => x !== f));
+    pintarFavoritosTendencias();
+}
+
 // Muestra todas las etapas del proceso de llegada, con lo que significa cada una
 function abrirAyudaEstimado() {
     const etapas = [
@@ -4272,6 +4340,7 @@ function navegarA(seccion) {
     if (seccion === 'productos') renderizarProductos();
     if (seccion === 'ventas') renderizarVentas();
     if (seccion === 'estimado') renderizarEstimados();
+    if (seccion === 'tendencias') iniciarTendencias();
 }
 
 // =============================================
@@ -7878,6 +7947,13 @@ document.addEventListener('webkitfullscreenchange', () => {
 // ===== Novedades: se muestran una sola vez por cada cambio nuevo =====
 // Cada vez que se agregue algo nuevo, se pone arriba una entrada nueva con un id distinto.
 const NOVEDADES = [
+    {
+        id: '2026-11-21-favoritos',
+        titulo: 'Novedades del sistema',
+        items: [
+            '⭐ Tendencias: la última búsqueda queda guardada sola y puedes guardar favoritas con la estrella.',
+        ]
+    },
     {
         id: '2026-11-21-tendencias',
         titulo: 'Novedades del sistema',
