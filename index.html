@@ -3865,6 +3865,8 @@ function cerrarModalDetalleEstimado() {
 function abrirTendencias(donde) {
     const q = (document.getElementById('tendencia-busqueda').value || '').trim();
     if (!q) { notify('❌ Escribí qué quieres buscar', 'error'); return; }
+    tendencias().ultima = q;
+    guardarTendencias();
     const enlaces = {
         trends: `https://trends.google.com/trends/explore?geo=BO&q=${encodeURIComponent(q)}`,
         trendsMundo: `https://trends.google.com/trends/explore?geo=&q=${encodeURIComponent(q)}`,
@@ -3874,23 +3876,28 @@ function abrirTendencias(donde) {
     window.open(enlaces[donde], '_blank', 'noopener');
 }
 
-// Búsquedas: la última queda guardada sola y las favoritas (⭐) se guardan en este navegador
-const TEND_KEY_ULTIMA = 'tendenciaUltima';
-const TEND_KEY_FAVS = 'tendenciasFavoritas';
-function leerLS(k, def) { try { const v = JSON.parse(localStorage.getItem(k)); return v === null ? def : v; } catch (e) { return def; } }
-function guardarLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sin acceso al almacenamiento */ } }
+// Búsquedas: la última y las favoritas (⭐) se guardan en la tienda, así salen en todos tus aparatos
+function tendencias() {
+    if (!estado.tendencias) estado.tendencias = { ultima: 'skimask', favoritas: [] };
+    if (!Array.isArray(estado.tendencias.favoritas)) estado.tendencias.favoritas = [];
+    return estado.tendencias;
+}
+let timerTendencias = null;
+function guardarTendencias() {
+    clearTimeout(timerTendencias);
+    timerTendencias = setTimeout(() => guardarEstado(), 600);
+}
 
 function iniciarTendencias() {
     const input = document.getElementById('tendencia-busqueda');
-    const ultima = leerLS(TEND_KEY_ULTIMA, null);
-    if (ultima) input.value = ultima;
-    input.oninput = () => { guardarLS(TEND_KEY_ULTIMA, input.value); pintarFavoritosTendencias(); };
+    input.value = tendencias().ultima || 'skimask';
+    input.oninput = () => { tendencias().ultima = input.value; guardarTendencias(); pintarFavoritosTendencias(); };
     pintarFavoritosTendencias();
 }
 
 function pintarFavoritosTendencias() {
     const q = document.getElementById('tendencia-busqueda').value.trim();
-    const favs = leerLS(TEND_KEY_FAVS, []);
+    const favs = tendencias().favoritas;
     document.getElementById('btn-fav-tend').textContent = favs.includes(q) ? '⭐' : '☆';
     const cont = document.getElementById('favoritos-tendencias');
     cont.innerHTML = '';
@@ -3920,21 +3927,23 @@ function pintarFavoritosTendencias() {
 function alternarFavoritoTendencia() {
     const q = document.getElementById('tendencia-busqueda').value.trim();
     if (!q) { notify('❌ Escribí una búsqueda para guardarla', 'error'); return; }
-    let favs = leerLS(TEND_KEY_FAVS, []);
-    favs = favs.includes(q) ? favs.filter(f => f !== q) : [...favs, q];
-    guardarLS(TEND_KEY_FAVS, favs);
+    const t = tendencias();
+    t.favoritas = t.favoritas.includes(q) ? t.favoritas.filter(f => f !== q) : [...t.favoritas, q];
+    guardarTendencias();
     pintarFavoritosTendencias();
 }
 
 function usarFavoritoTendencia(f) {
-    const input = document.getElementById('tendencia-busqueda');
-    input.value = f;
-    guardarLS(TEND_KEY_ULTIMA, f);
+    document.getElementById('tendencia-busqueda').value = f;
+    tendencias().ultima = f;
+    guardarTendencias();
     pintarFavoritosTendencias();
 }
 
 function quitarFavoritoTendencia(f) {
-    guardarLS(TEND_KEY_FAVS, leerLS(TEND_KEY_FAVS, []).filter(x => x !== f));
+    const t = tendencias();
+    t.favoritas = t.favoritas.filter(x => x !== f);
+    guardarTendencias();
     pintarFavoritosTendencias();
 }
 
@@ -7947,6 +7956,13 @@ document.addEventListener('webkitfullscreenchange', () => {
 // ===== Novedades: se muestran una sola vez por cada cambio nuevo =====
 // Cada vez que se agregue algo nuevo, se pone arriba una entrada nueva con un id distinto.
 const NOVEDADES = [
+    {
+        id: '2026-11-21-favoritos-nube',
+        titulo: 'Novedades del sistema',
+        items: [
+            '⭐ Tendencias: las búsquedas favoritas y la última búsqueda ahora se guardan en la tienda y salen en todos tus aparatos.',
+        ]
+    },
     {
         id: '2026-11-21-favoritos',
         titulo: 'Novedades del sistema',
