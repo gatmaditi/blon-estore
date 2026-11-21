@@ -3865,7 +3865,7 @@ function cerrarModalDetalleEstimado() {
 function abrirTendencias(donde) {
     const q = (document.getElementById('tendencia-busqueda').value || '').trim();
     if (!q) { notify('❌ Escribí qué quieres buscar', 'error'); return; }
-    tendencias().ultima = q;
+    tend.ultima = q;
     guardarTendencias();
     const enlaces = {
         trends: `https://trends.google.com/trends/explore?geo=BO&q=${encodeURIComponent(q)}`,
@@ -3876,28 +3876,47 @@ function abrirTendencias(donde) {
     window.open(enlaces[donde], '_blank', 'noopener');
 }
 
-// Búsquedas: la última y las favoritas (⭐) se guardan en la tienda, así salen en todos tus aparatos
-function tendencias() {
-    if (!estado.tendencias) estado.tendencias = { ultima: 'skimask', favoritas: [] };
-    if (!Array.isArray(estado.tendencias.favoritas)) estado.tendencias.favoritas = [];
-    return estado.tendencias;
-}
+// Búsquedas: la última y las favoritas (⭐) se guardan en una fila pequeña de la nube (id "tendencias").
+// Así cada aparato las lee rápido al abrir Tendencias, sin cargar toda la tienda.
+let tend = { ultima: 'skimask', favoritas: [] };
 let timerTendencias = null;
+
 function guardarTendencias() {
     clearTimeout(timerTendencias);
-    timerTendencias = setTimeout(() => guardarEstado(), 600);
+    timerTendencias = setTimeout(async () => {
+        if (!supabaseClient) return;
+        try {
+            await supabaseClient.from('estado_tienda').upsert({ id: 'tendencias', data: tend, updated_at: new Date().toISOString() });
+        } catch (e) { console.warn('No se guardaron las tendencias:', e); }
+    }, 400);
+}
+
+async function cargarTendencias() {
+    if (!supabaseClient) return;
+    try {
+        const { data, error } = await supabaseClient.from('estado_tienda').select('data').eq('id', 'tendencias');
+        if (!error && data && data[0] && data[0].data) {
+            const d = data[0].data;
+            tend = { ultima: d.ultima || 'skimask', favoritas: Array.isArray(d.favoritas) ? d.favoritas : [] };
+        }
+    } catch (e) { /* sin conexión: se usa lo último que se tenía */ }
 }
 
 function iniciarTendencias() {
     const input = document.getElementById('tendencia-busqueda');
-    input.value = tendencias().ultima || 'skimask';
-    input.oninput = () => { tendencias().ultima = input.value; guardarTendencias(); pintarFavoritosTendencias(); };
+    input.value = tend.ultima;
+    input.oninput = () => { tend.ultima = input.value; guardarTendencias(); pintarFavoritosTendencias(); };
     pintarFavoritosTendencias();
+    // Trae lo más nuevo de la nube (por si lo guardaste desde otro aparato)
+    cargarTendencias().then(() => {
+        if (document.activeElement !== input) input.value = tend.ultima;
+        pintarFavoritosTendencias();
+    });
 }
 
 function pintarFavoritosTendencias() {
     const q = document.getElementById('tendencia-busqueda').value.trim();
-    const favs = tendencias().favoritas;
+    const favs = tend.favoritas;
     document.getElementById('btn-fav-tend').textContent = favs.includes(q) ? '⭐' : '☆';
     const cont = document.getElementById('favoritos-tendencias');
     cont.innerHTML = '';
@@ -3927,22 +3946,20 @@ function pintarFavoritosTendencias() {
 function alternarFavoritoTendencia() {
     const q = document.getElementById('tendencia-busqueda').value.trim();
     if (!q) { notify('❌ Escribí una búsqueda para guardarla', 'error'); return; }
-    const t = tendencias();
-    t.favoritas = t.favoritas.includes(q) ? t.favoritas.filter(f => f !== q) : [...t.favoritas, q];
+    tend.favoritas = tend.favoritas.includes(q) ? tend.favoritas.filter(f => f !== q) : [...tend.favoritas, q];
     guardarTendencias();
     pintarFavoritosTendencias();
 }
 
 function usarFavoritoTendencia(f) {
     document.getElementById('tendencia-busqueda').value = f;
-    tendencias().ultima = f;
+    tend.ultima = f;
     guardarTendencias();
     pintarFavoritosTendencias();
 }
 
 function quitarFavoritoTendencia(f) {
-    const t = tendencias();
-    t.favoritas = t.favoritas.filter(x => x !== f);
+    tend.favoritas = tend.favoritas.filter(x => x !== f);
     guardarTendencias();
     pintarFavoritosTendencias();
 }
